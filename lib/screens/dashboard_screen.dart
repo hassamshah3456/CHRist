@@ -23,6 +23,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _locationOn = true;
+  String _dueText = '—'; // total amount to be paid
 
   @override
   void initState() {
@@ -30,8 +31,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CollectionProvider>().refreshStats();
       context.read<QuestionnaireService>().prepare();
+      _loadPayment();
       _checkLocation();
     });
+  }
+
+  Future<void> _loadPayment() async {
+    try {
+      final res =
+          await context.read<CollectionProvider>().api.get('/collections/payment');
+      final m = (res as Map);
+      final cur = (m['currency'] ?? '₹').toString();
+      final due = (m['due'] ?? 0) as num;
+      if (mounted) {
+        setState(() =>
+            _dueText = '$cur${due % 1 == 0 ? due.toInt() : due}');
+      }
+    } catch (_) {/* offline — keep last value */}
   }
 
   Future<void> _checkLocation() async {
@@ -62,6 +78,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onRefresh: () async {
             await context.read<SyncService>().syncNow();
             await context.read<CollectionProvider>().refreshStats();
+            await _loadPayment();
             await _checkLocation();
           },
           child: ListView(
@@ -80,7 +97,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _PendingChip(count: cp.pendingSync),
                 const SizedBox(height: 16),
               ],
-              _StatsGrid(stats: cp.stats),
+              Row(
+                children: [
+                  _StatTile(
+                    label: "Today's entries",
+                    value: cp.stats.today,
+                    icon: Icons.today_rounded,
+                    color: AppTheme.primary,
+                  ),
+                  const SizedBox(width: 14),
+                  _StatTile(
+                    label: 'Total to be paid',
+                    valueText: _dueText,
+                    icon: Icons.payments_rounded,
+                    color: AppTheme.success,
+                  ),
+                ],
+              ),
               const SizedBox(height: 22),
               OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(
@@ -207,78 +240,16 @@ class _PendingChip extends StatelessWidget {
   }
 }
 
-class _StatsGrid extends StatelessWidget {
-  final Stats stats;
-  const _StatsGrid({required this.stats});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            _StatTile(
-              label: 'Today',
-              value: stats.today,
-              icon: Icons.today_rounded,
-              color: AppTheme.primary,
-            ),
-            const SizedBox(width: 14),
-            _StatTile(
-              label: 'This week',
-              value: stats.week,
-              icon: Icons.calendar_view_week_rounded,
-              color: AppTheme.accent,
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            _StatTile(
-              label: 'This month',
-              value: stats.month,
-              icon: Icons.calendar_month_rounded,
-              color: const Color(0xFF7A5AF8),
-            ),
-            const SizedBox(width: 14),
-            _StatTile(
-              label: 'Total',
-              value: stats.total,
-              icon: Icons.dataset_rounded,
-              color: AppTheme.success,
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        SectionCard(
-          child: Row(
-            children: [
-              _ConsentStat(
-                  label: 'Consent: Yes',
-                  value: stats.consentYes,
-                  color: AppTheme.success),
-              Container(width: 1, height: 36, color: const Color(0xFFE6E9F2)),
-              _ConsentStat(
-                  label: 'Consent: No',
-                  value: stats.consentNo,
-                  color: AppTheme.danger),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _StatTile extends StatelessWidget {
   final String label;
   final int value;
+  final String? valueText;
   final IconData icon;
   final Color color;
   const _StatTile({
     required this.label,
-    required this.value,
+    this.value = 0,
+    this.valueText,
     required this.icon,
     required this.color,
   });
@@ -301,7 +272,7 @@ class _StatTile extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Text(
-              '$value',
+              valueText ?? '$value',
               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
             ),
             Text(label,
@@ -309,30 +280,6 @@ class _StatTile extends StatelessWidget {
                     const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _ConsentStat extends StatelessWidget {
-  final String label;
-  final int value;
-  final Color color;
-  const _ConsentStat(
-      {required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text('$value',
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
-        ],
       ),
     );
   }
