@@ -40,7 +40,10 @@
     <div class="topbar-left">
       <div class="brand-badge sm">✦</div>
       <span class="topbar-title">UsmleWise CHRIST</span>
-      <span class="pill">Management</span>
+      <nav class="nav">
+        <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+        <button class="nav-btn" data-view="questionnaire">Questionnaire</button>
+      </nav>
     </div>
     <div class="topbar-right">
       <select id="period">
@@ -57,6 +60,7 @@
   </header>
 
   <main class="container">
+    <div id="view-dashboard">
     <!-- KPIs -->
     <section class="kpi-grid" id="kpi-grid"></section>
 
@@ -134,8 +138,29 @@
       </div>
     </section>
 
+    </div><!-- /view-dashboard -->
+
+    <!-- ===== QUESTIONNAIRE MANAGEMENT ===== -->
+    <div id="view-questionnaire" class="hidden">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h3 style="margin-bottom:4px">Screening questionnaire</h3>
+            <small>Questions the app shows on the screening screen. Changes apply to the app on its next launch.</small>
+          </div>
+          <button class="btn-primary" id="add-question-btn">＋ Add question</button>
+        </div>
+        <div id="questions-list" class="q-list"></div>
+      </section>
+    </div>
+
     <footer class="foot">UsmleWise CHRIST · data is synced from the field app in real time.</footer>
   </main>
+</div>
+
+<!-- ===== MODAL ===== -->
+<div id="modal-backdrop" class="modal-backdrop hidden">
+  <div class="modal" id="modal"></div>
 </div>
 
 <script src="app.js"></script>

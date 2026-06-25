@@ -5,19 +5,47 @@ Prefixed with /api so they don't collide with the /admin static mount.
 """
 import csv
 import io
-from collections import Counter, OrderedDict
+import os
+from collections import Counter, OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..auth import get_current_admin
+from ..config import settings
 from ..database import get_db
 
 router = APIRouter(prefix="/api", tags=["admin"])
+
+
+def _answers_by_collection(db: Session, collection_ids: List[str]):
+    """Fetch answers for many collections in one query, grouped by collection."""
+    grouped = defaultdict(list)
+    if not collection_ids:
+        return grouped
+    rows = db.query(models.Answer).filter(
+        models.Answer.collection_id.in_(collection_ids)
+    ).all()
+    for a in rows:
+        grouped[a.collection_id].append(a)
+    return grouped
+
+
+def _answer_display(a: models.Answer) -> str:
+    """Human-readable answer value for CSV/quick views."""
+    if a.value_bool is not None:
+        base = "yes" if a.value_bool else "no"
+    elif a.value_number is not None:
+        base = str(a.value_number)
+    else:
+        base = a.value_text or ""
+    if a.photo_filename:
+        base = (base + " [photo]").strip()
+    return base
 
 
 def _today() -> datetime:
@@ -141,6 +169,7 @@ def admin_collections(
     if collector_id:
         q = q.filter(models.Collection.user_id == collector_id)
     rows = q.order_by(models.Collection.collected_at.desc()).all()
+    answers = _answers_by_collection(db, [c.id for c, _ in rows])
 
     return [
         schemas.AdminCollectionOut(
@@ -157,6 +186,18 @@ def admin_collections(
             location_lng=c.location_lng,
             location_address=c.location_address,
             collected_at=c.collected_at,
+            answers=[
+                schemas.AnswerOut(
+                    question_code=a.question_code,
+                    question_title=a.question_title,
+                    qtype=a.qtype,
+                    value_bool=a.value_bool,
+                    value_number=a.value_number,
+                    value_text=a.value_text,
+                    photo_filename=a.photo_filename,
+                )
+                for a in answers.get(c.id, [])
+            ],
         )
         for c, u in rows
     ]
@@ -184,14 +225,30 @@ def export_csv(
     q = _apply_period(q, period)
     rows = q.order_by(models.Collection.collected_at.desc()).all()
 
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow([
+    # Build dynamic answer columns (one per question code present), ordered by
+    # the questionnaire's display order.
+    grouped = _answers_by_collection(db, [c.id for c, _ in rows])
+    code_title = {}
+    for alist in grouped.values():
+        for a in alist:
+            code_title.setdefault(a.question_code, a.question_title or a.question_code)
+    order_map = {
+        qq.code: qq.order_index
+        for qq in db.query(models.Question).all()
+    }
+    answer_codes = sorted(code_title.keys(), key=lambda c: order_map.get(c, 9999))
+
+    base_cols = [
         "id", "collected_at", "collector_name", "collector_email",
         "verbal_consent", "child_age", "child_sex", "responder",
         "responder_other", "location_lat", "location_lng", "location_address",
-    ])
+    ]
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(base_cols + [f"Q:{code_title[c]}" for c in answer_codes])
     for c, u in rows:
+        by_code = {a.question_code: a for a in grouped.get(c.id, [])}
         writer.writerow([
             c.id,
             c.collected_at.isoformat() if c.collected_at else "",
@@ -205,6 +262,9 @@ def export_csv(
             c.location_lat if c.location_lat is not None else "",
             c.location_lng if c.location_lng is not None else "",
             c.location_address or "",
+        ] + [
+            _answer_display(by_code[code]) if code in by_code else ""
+            for code in answer_codes
         ])
     buf.seek(0)
     filename = f"collections_{period}_{datetime.utcnow():%Y%m%d}.csv"
@@ -213,3 +273,19 @@ def export_csv(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/photos/{filename}")
+def get_photo(
+    filename: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Serve an uploaded photo to admins only (these are medical records)."""
+    # Guard against path traversal — only a bare filename is allowed.
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(400, "Invalid filename.")
+    path = os.path.join(settings.MEDIA_DIR, filename)
+    if not os.path.isfile(path):
+        raise HTTPException(404, "Photo not found.")
+    return FileResponse(path)

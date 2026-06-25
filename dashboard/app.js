@@ -193,7 +193,7 @@ function renderCollections(rows) {
       ? (r.responder_other || "Other") : cap(r.responder);
     const loc = r.location_address
       || (r.location_lat != null ? `${r.location_lat.toFixed(4)}, ${r.location_lng.toFixed(4)}` : "—");
-    return `<tr>
+    return `<tr class="clickable" data-id="${r.id}">
       <td>${fmtDate(r.collected_at)}</td>
       <td>${r.collector_name || "—"}</td>
       <td>${r.child_age ?? "—"}</td>
@@ -291,6 +291,236 @@ async function exportCsv() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/* ---------- modal ---------- */
+function openModal(html) {
+  $("#modal").innerHTML = html;
+  $("#modal-backdrop").classList.remove("hidden");
+}
+function closeModal() {
+  $("#modal-backdrop").classList.add("hidden");
+  $("#modal").innerHTML = "";
+}
+$("#modal-backdrop").addEventListener("click", (e) => {
+  if (e.target.id === "modal-backdrop") closeModal();
+});
+
+/* ---------- views ---------- */
+function switchView(view) {
+  document.querySelectorAll(".nav-btn").forEach((b) =>
+    b.classList.toggle("active", b.dataset.view === view));
+  $("#view-dashboard").classList.toggle("hidden", view !== "dashboard");
+  $("#view-questionnaire").classList.toggle("hidden", view !== "questionnaire");
+  if (view === "questionnaire") loadQuestions();
+  else setTimeout(() => map && map.invalidateSize(), 100);
+}
+document.querySelectorAll(".nav-btn").forEach((b) =>
+  b.addEventListener("click", () => switchView(b.dataset.view)));
+
+/* ---------- questionnaire management ---------- */
+const QTYPES = [
+  ["yes_no", "Yes / No"],
+  ["single_choice", "Single choice"],
+  ["multi_choice", "Multiple choice"],
+  ["number", "Number"],
+  ["text", "Free text"],
+];
+let questions = [];
+
+async function loadQuestions() {
+  questions = await api("/api/questions");
+  renderQuestions();
+}
+
+function renderQuestions() {
+  const wrap = $("#questions-list");
+  if (!questions.length) {
+    wrap.innerHTML = `<div class="empty">No questions yet. Click “Add question”.</div>`;
+    return;
+  }
+  wrap.innerHTML = questions.map((q, i) => {
+    const typeLabel = (QTYPES.find((t) => t[0] === q.qtype) || ["", q.qtype])[1];
+    return `
+    <div class="q-item ${q.is_active ? "" : "inactive"}">
+      <div class="q-order">
+        <button data-up="${q.id}" ${i === 0 ? "disabled" : ""}>▲</button>
+        <button data-down="${q.id}" ${i === questions.length - 1 ? "disabled" : ""}>▼</button>
+      </div>
+      <div class="q-num">${i + 1}</div>
+      <div class="q-body">
+        <div class="q-title">${escapeHtml(q.title)}</div>
+        ${q.help_text ? `<div class="q-help">${escapeHtml(q.help_text)}</div>` : ""}
+        <div class="q-tags">
+          <span class="q-tag type">${typeLabel}</span>
+          ${q.required ? `<span class="q-tag">Required</span>` : ""}
+          ${q.secondary_aim ? `<span class="q-tag secondary">Secondary aim</span>` : ""}
+          ${q.photo_on_yes ? `<span class="q-tag photo">Photo on “Yes”</span>` : ""}
+          ${q.note_on_yes ? `<span class="q-tag">Note on “Yes”</span>` : ""}
+          ${!q.is_active ? `<span class="q-tag">Disabled</span>` : ""}
+          ${q.options && q.options.length ? `<span class="q-tag">${q.options.length} options</span>` : ""}
+        </div>
+      </div>
+      <div class="q-actions">
+        <button data-edit="${q.id}">Edit</button>
+        <button class="del" data-del="${q.id}">Delete</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function questionForm(q) {
+  const isEdit = !!q;
+  q = q || { qtype: "yes_no", required: true, is_active: true, options: [] };
+  return `
+    <h3>${isEdit ? "Edit" : "Add"} question</h3>
+    <label>Question text</label>
+    <input type="text" id="q-title" value="${escapeHtml(q.title || "")}" placeholder="e.g. Does recovery take longer than two weeks?" />
+    <label>Help text (optional)</label>
+    <textarea id="q-help" placeholder="Guidance shown under the question">${escapeHtml(q.help_text || "")}</textarea>
+    <label>Answer type</label>
+    <select id="q-type">
+      ${QTYPES.map((t) => `<option value="${t[0]}" ${q.qtype === t[0] ? "selected" : ""}>${t[1]}</option>`).join("")}
+    </select>
+    <div id="q-options-wrap" class="${["single_choice", "multi_choice"].includes(q.qtype) ? "" : "hidden"}">
+      <label>Options (one per line)</label>
+      <textarea id="q-options" placeholder="Option A&#10;Option B">${escapeHtml((q.options || []).join("\n"))}</textarea>
+    </div>
+    <div id="q-yesno-wrap" class="${q.qtype === "yes_no" ? "" : "hidden"}">
+      <label class="check"><input type="checkbox" id="q-photo" ${q.photo_on_yes ? "checked" : ""}/> Capture a photo when answered “Yes” (e.g. OPD card)</label>
+      <label class="check"><input type="checkbox" id="q-note" ${q.note_on_yes ? "checked" : ""}/> Ask for a text note when answered “Yes”</label>
+    </div>
+    <label class="check"><input type="checkbox" id="q-required" ${q.required ? "checked" : ""}/> Required</label>
+    <label class="check"><input type="checkbox" id="q-secondary" ${q.secondary_aim ? "checked" : ""}/> Secondary aim</label>
+    <label class="check"><input type="checkbox" id="q-active" ${q.is_active ? "checked" : ""}/> Active (shown in the app)</label>
+    <div class="modal-actions">
+      <button class="cancel" id="q-cancel">Cancel</button>
+      <button class="btn-primary" id="q-save">${isEdit ? "Save changes" : "Add question"}</button>
+    </div>`;
+}
+
+function openQuestionModal(q) {
+  openModal(questionForm(q));
+  const typeSel = $("#q-type");
+  typeSel.addEventListener("change", () => {
+    const t = typeSel.value;
+    $("#q-options-wrap").classList.toggle("hidden", !["single_choice", "multi_choice"].includes(t));
+    $("#q-yesno-wrap").classList.toggle("hidden", t !== "yes_no");
+  });
+  $("#q-cancel").addEventListener("click", closeModal);
+  $("#q-save").addEventListener("click", () => saveQuestion(q && q.id));
+}
+
+async function saveQuestion(id) {
+  const title = $("#q-title").value.trim();
+  if (!title) { alert("Enter the question text."); return; }
+  const qtype = $("#q-type").value;
+  const options = ["single_choice", "multi_choice"].includes(qtype)
+    ? $("#q-options").value.split("\n").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const body = {
+    title,
+    help_text: $("#q-help").value.trim() || null,
+    qtype,
+    options,
+    required: $("#q-required").checked,
+    secondary_aim: $("#q-secondary").checked,
+    photo_on_yes: qtype === "yes_no" && $("#q-photo").checked,
+    note_on_yes: qtype === "yes_no" && $("#q-note").checked,
+    is_active: $("#q-active").checked,
+  };
+  try {
+    await api(id ? `/api/questions/${id}` : "/api/questions", {
+      method: id ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    closeModal();
+    loadQuestions();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteQuestion(id) {
+  if (!confirm("Delete this question? Existing answers are kept.")) return;
+  await api(`/api/questions/${id}`, { method: "DELETE" });
+  loadQuestions();
+}
+
+async function moveQuestion(id, dir) {
+  const i = questions.findIndex((q) => q.id === id);
+  const j = i + dir;
+  if (j < 0 || j >= questions.length) return;
+  [questions[i], questions[j]] = [questions[j], questions[i]];
+  renderQuestions();
+  await api("/api/questions/reorder", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ordered_ids: questions.map((q) => q.id) }),
+  });
+}
+
+$("#questions-list").addEventListener("click", (e) => {
+  const t = e.target;
+  if (t.dataset.edit) openQuestionModal(questions.find((q) => q.id === t.dataset.edit));
+  else if (t.dataset.del) deleteQuestion(t.dataset.del);
+  else if (t.dataset.up) moveQuestion(t.dataset.up, -1);
+  else if (t.dataset.down) moveQuestion(t.dataset.down, 1);
+});
+$("#add-question-btn").addEventListener("click", () => openQuestionModal(null));
+
+/* ---------- submission detail (answers + photos) ---------- */
+async function loadPhoto(filename, imgEl) {
+  try {
+    const res = await fetch(API + "/api/photos/" + encodeURIComponent(filename), {
+      headers: { Authorization: "Bearer " + getToken() },
+    });
+    if (!res.ok) return;
+    imgEl.src = URL.createObjectURL(await res.blob());
+  } catch (e) {}
+}
+
+function openSubmission(id) {
+  const r = lastCollections.find((c) => c.id === id);
+  if (!r) return;
+  const responder = r.responder === "other" ? (r.responder_other || "Other") : cap(r.responder);
+  let html = `<h3>Submission detail</h3>
+    <div class="ans-row"><div class="ans-q">Collector</div><div class="ans-v">${escapeHtml(r.collector_name || "—")}</div></div>
+    <div class="ans-row"><div class="ans-q">When</div><div class="ans-v">${fmtDate(r.collected_at)}</div></div>
+    <div class="ans-row"><div class="ans-q">Child</div><div class="ans-v">Age ${r.child_age ?? "—"} · ${cap(r.child_sex)} · Responder: ${escapeHtml(responder)}</div></div>
+    <div class="ans-row"><div class="ans-q">Verbal consent</div><div class="ans-v"><span class="${r.verbal_consent ? "yes" : "no"}">${r.verbal_consent ? "Yes" : "No"}</span></div></div>
+    <div class="ans-row"><div class="ans-q">Location</div><div class="ans-v">${escapeHtml(r.location_address || (r.location_lat != null ? r.location_lat.toFixed(5) + ", " + r.location_lng.toFixed(5) : "—"))}</div></div>`;
+
+  const answers = r.answers || [];
+  if (answers.length) {
+    html += `<h3 style="margin-top:18px">Screening answers</h3>`;
+    answers.forEach((a, i) => {
+      let v = "—";
+      if (a.value_bool != null) v = `<span class="${a.value_bool ? "yes" : "no"}">${a.value_bool ? "Yes" : "No"}</span>`;
+      else if (a.value_number != null) v = a.value_number;
+      else if (a.value_text) v = escapeHtml(a.value_text);
+      html += `<div class="ans-row">
+        <div class="ans-q">${escapeHtml(a.question_title || a.question_code)}</div>
+        <div class="ans-v">${v}${a.value_text && a.value_bool != null ? " — " + escapeHtml(a.value_text) : ""}</div>
+        ${a.photo_filename ? `<img class="ans-photo" id="ph-${i}" alt="photo loading…"/>` : ""}
+      </div>`;
+    });
+  } else {
+    html += `<p class="hint" style="margin-top:14px">No screening answers recorded for this submission.</p>`;
+  }
+  html += `<div class="modal-actions"><button class="cancel" id="sub-close">Close</button></div>`;
+  openModal(html);
+  $("#sub-close").addEventListener("click", closeModal);
+  answers.forEach((a, i) => { if (a.photo_filename) loadPhoto(a.photo_filename, $("#ph-" + i)); });
+}
+
+$("#collections-table").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr.clickable");
+  if (tr && tr.dataset.id) openSubmission(tr.dataset.id);
+});
 
 /* ---------- events ---------- */
 $("#login-form").addEventListener("submit", async (e) => {

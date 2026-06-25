@@ -44,6 +44,65 @@ class TokenResponse(BaseModel):
     user: UserOut
 
 
+# ---------- Questionnaire ----------
+QTYPES = {"yes_no", "single_choice", "multi_choice", "number", "text"}
+
+
+class QuestionIn(BaseModel):
+    code: Optional[str] = None  # auto-generated if omitted
+    title: str = Field(..., min_length=1)
+    help_text: Optional[str] = None
+    qtype: str = "yes_no"
+    options: List[str] = []
+    required: bool = True
+    secondary_aim: bool = False
+    photo_on_yes: bool = False
+    note_on_yes: bool = False
+    is_active: bool = True
+    order_index: Optional[int] = None
+
+
+class QuestionOut(BaseModel):
+    id: str
+    code: str
+    order_index: int
+    title: str
+    help_text: Optional[str] = None
+    qtype: str
+    options: List[str] = []
+    required: bool
+    secondary_aim: bool
+    photo_on_yes: bool
+    note_on_yes: bool
+    is_active: bool
+
+
+class ReorderRequest(BaseModel):
+    ordered_ids: List[str]
+
+
+# ---------- Answers ----------
+class AnswerIn(BaseModel):
+    question_id: Optional[str] = None
+    question_code: str
+    question_title: Optional[str] = None
+    qtype: Optional[str] = None
+    value_bool: Optional[bool] = None
+    value_number: Optional[float] = None
+    value_text: Optional[str] = None
+    photo_filename: Optional[str] = None
+
+
+class AnswerOut(BaseModel):
+    question_code: str
+    question_title: Optional[str] = None
+    qtype: Optional[str] = None
+    value_bool: Optional[bool] = None
+    value_number: Optional[float] = None
+    value_text: Optional[str] = None
+    photo_filename: Optional[str] = None
+
+
 # ---------- Collections ----------
 class CollectionIn(BaseModel):
     """One collection coming up from the device (offline-capable)."""
@@ -57,6 +116,7 @@ class CollectionIn(BaseModel):
     location_lng: Optional[float] = None
     location_address: Optional[str] = None
     collected_at: Optional[datetime] = None
+    answers: List[AnswerIn] = []
 
 
 class CollectionOut(BaseModel):
@@ -147,3 +207,4 @@ class AdminCollectionOut(BaseModel):
     location_lng: Optional[float] = None
     location_address: Optional[str] = None
     collected_at: datetime
+    answers: List[AnswerOut] = []

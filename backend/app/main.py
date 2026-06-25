@@ -10,11 +10,20 @@ from . import models, schemas
 from .auth import get_current_user
 from .config import settings
 from .database import Base, engine
-from .routers import admin_router, auth_router, collections_router, stats_router
+from .routers import (
+    admin_router,
+    auth_router,
+    collections_router,
+    questions_router,
+    stats_router,
+)
 
 # Create tables on startup (fine for SQLite / small deployments; for Postgres
 # in production you'd typically use Alembic migrations instead).
 Base.metadata.create_all(bind=engine)
+
+# Ensure the media directory exists for uploaded photos.
+os.makedirs(settings.MEDIA_DIR, exist_ok=True)
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
@@ -31,6 +40,8 @@ app.include_router(auth_router.router)
 app.include_router(collections_router.router)
 app.include_router(stats_router.router)
 app.include_router(admin_router.router)  # /api/* admin endpoints
+app.include_router(questions_router.router)  # /api/questions admin CRUD
+app.include_router(questions_router.public_router)  # /questionnaire (collector)
 
 
 @app.get("/health", tags=["health"])

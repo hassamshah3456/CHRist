@@ -33,5 +33,13 @@ class Settings:
 
     PROJECT_NAME: str = "UsmleWise CHRIST API"
 
+    # Where uploaded photos (e.g. OPD cards) are stored on disk. These are
+    # medical records, so they're served only through an admin-authenticated
+    # endpoint, never as public static files.
+    MEDIA_DIR: str = os.getenv(
+        "MEDIA_DIR",
+        str(Path(__file__).resolve().parent.parent / "media"),
+    )
+
 
 settings = Settings()

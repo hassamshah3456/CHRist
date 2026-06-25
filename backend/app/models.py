@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
 )
 from sqlalchemy.orm import relationship
 
@@ -80,3 +81,51 @@ class Collection(Base):
     synced_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="collections")
+    answers = relationship(
+        "Answer", back_populates="collection", cascade="all, delete-orphan"
+    )
+
+
+class Question(Base):
+    """An admin-managed screening question rendered dynamically by the app."""
+    __tablename__ = "questions"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    code = Column(String(64), unique=True, index=True, nullable=False)
+    order_index = Column(Integer, nullable=False, default=0)
+    title = Column(String(512), nullable=False)
+    help_text = Column(String(1024), nullable=True)
+
+    # yes_no | single_choice | multi_choice | number | text
+    qtype = Column(String(20), nullable=False, default="yes_no")
+    options_json = Column(Text, nullable=True)  # JSON array for choice types
+
+    required = Column(Boolean, nullable=False, default=True)
+    secondary_aim = Column(Boolean, nullable=False, default=False)
+    # For yes_no: when answered "yes", prompt for a photo / a note.
+    photo_on_yes = Column(Boolean, nullable=False, default=False)
+    note_on_yes = Column(Boolean, nullable=False, default=False)
+
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Answer(Base):
+    """One collector's answer to one question, attached to a collection."""
+    __tablename__ = "answers"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    collection_id = Column(
+        String(36), ForeignKey("collections.id"), index=True, nullable=False
+    )
+    question_id = Column(String(36), nullable=True)  # null if question removed
+    question_code = Column(String(64), nullable=False)
+    question_title = Column(String(512), nullable=True)  # snapshot at answer time
+    qtype = Column(String(20), nullable=True)
+
+    value_bool = Column(Boolean, nullable=True)
+    value_number = Column(Float, nullable=True)
+    value_text = Column(Text, nullable=True)   # text / note / joined multi-choice
+    photo_filename = Column(String(255), nullable=True)
+
+    collection = relationship("Collection", back_populates="answers")

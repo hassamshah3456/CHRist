@@ -146,3 +146,77 @@ tbody tr:hover { background: #f7f9fe; }
 .badge-no { background: #fdeceb; color: var(--danger); }
 .empty { text-align: center; color: var(--muted); padding: 30px; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; }
+
+/* ---------- Nav ---------- */
+.nav { display: flex; gap: 4px; margin-left: 8px; }
+.nav-btn {
+  border: none; background: none; padding: 7px 13px; border-radius: 9px;
+  cursor: pointer; font-weight: 600; color: var(--muted); font-size: 14px;
+}
+.nav-btn.active { background: #eaf0ff; color: var(--primary); }
+
+/* ---------- Questionnaire list ---------- */
+.q-list { display: flex; flex-direction: column; gap: 10px; }
+.q-item {
+  display: flex; align-items: flex-start; gap: 12px; padding: 14px;
+  border: 1px solid var(--border); border-radius: 12px; background: #fbfcff;
+}
+.q-item.inactive { opacity: .55; }
+.q-order { display: flex; flex-direction: column; gap: 2px; }
+.q-order button {
+  border: 1px solid var(--border); background: #fff; border-radius: 6px;
+  width: 26px; height: 22px; cursor: pointer; line-height: 1; font-size: 12px;
+}
+.q-num {
+  width: 26px; height: 26px; border-radius: 8px; background: var(--primary);
+  color: #fff; display: grid; place-items: center; font-size: 13px; font-weight: 700;
+  flex-shrink: 0;
+}
+.q-body { flex: 1; min-width: 0; }
+.q-title { font-weight: 700; }
+.q-help { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.q-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.q-tag {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  background: #eef1f8; color: var(--muted);
+}
+.q-tag.type { background: #eaf0ff; color: var(--primary); }
+.q-tag.photo { background: #fff3e0; color: #b06a00; }
+.q-tag.secondary { background: #f3eaff; color: #6b3fd4; }
+.q-actions { display: flex; gap: 6px; }
+.q-actions button {
+  border: 1px solid var(--border); background: #fff; border-radius: 8px;
+  padding: 6px 10px; cursor: pointer; font-size: 13px;
+}
+.q-actions .del { color: var(--danger); border-color: #f3c9c5; }
+
+/* ---------- Modal ---------- */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(20,33,70,.45);
+  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 18px;
+}
+.modal {
+  background: #fff; border-radius: 16px; padding: 22px; width: 100%;
+  max-width: 540px; max-height: 88vh; overflow-y: auto; box-shadow: var(--shadow);
+}
+.modal h3 { margin: 0 0 16px; }
+.modal label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+.modal input[type=text], .modal textarea, .modal select {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 10px; font-size: 14px; font-family: inherit; outline: none;
+}
+.modal textarea { min-height: 64px; resize: vertical; }
+.modal .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; font-weight: 500; }
+.modal .check input { width: auto; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+.modal-actions .cancel { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; cursor: pointer; font-weight: 600; }
+tbody tr.clickable { cursor: pointer; }
+
+/* answers in detail modal */
+.ans-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.ans-q { font-weight: 600; font-size: 14px; }
+.ans-v { color: var(--text); margin-top: 2px; }
+.ans-v .yes { color: var(--success); font-weight: 700; }
+.ans-v .no { color: var(--danger); font-weight: 700; }
+.ans-photo { margin-top: 8px; max-width: 220px; border-radius: 10px; border: 1px solid var(--border); }
+.hint { color: var(--muted); font-size: 12px; }
