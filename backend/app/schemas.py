@@ -44,6 +44,18 @@ class TokenResponse(BaseModel):
     user: UserOut
 
 
+# ---------- Presence ----------
+class HeartbeatRequest(BaseModel):
+    session_id: str = Field(..., min_length=1, max_length=36)
+    location: Optional[GeoPoint] = None
+
+
+class HeartbeatResponse(BaseModel):
+    online: bool = True
+    last_seen: datetime
+    app_seconds: int
+
+
 # ---------- Questionnaire ----------
 QTYPES = {"yes_no", "single_choice", "multi_choice", "number", "text"}
 
@@ -204,6 +216,31 @@ class CollectorSummary(BaseModel):
     last_lat: Optional[float] = None
     last_lng: Optional[float] = None
     last_address: Optional[str] = None
+    app_seconds: int = 0
+
+
+class CollectorGroupIn(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    member_ids: List[str] = []
+
+
+class CollectorGroupSummary(BaseModel):
+    id: str
+    name: str
+    members_count: int
+    collections_count: int
+    online_count: int
+    created_at: datetime
+
+
+class CollectorGroupDetail(BaseModel):
+    id: str
+    name: str
+    members_count: int
+    collections_count: int
+    online_count: int
+    created_at: datetime
+    members: List[CollectorSummary]
 
 
 class AdminStats(BaseModel):

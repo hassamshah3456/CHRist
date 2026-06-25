@@ -36,7 +36,11 @@ def _ensure_columns():
     """
     # NOT NULL columns get a default so existing rows backfill cleanly; others
     # are added nullable (safe for backfilling an already-populated table).
-    not_null_defaults = {"paid": "0", "training_paid": "0"}
+    not_null_defaults = {
+        "paid": "0",
+        "training_paid": "0",
+        "app_seconds": "0",
+    }
     inspector = inspect(engine)
     prep = engine.dialect.identifier_preparer
     for table_name, table in Base.metadata.tables.items():

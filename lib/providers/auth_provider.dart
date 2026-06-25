@@ -4,6 +4,7 @@ import '../models/user.dart';
 import '../services/api_client.dart';
 import '../services/local_database.dart';
 import '../services/location_service.dart';
+import '../services/presence_service.dart';
 import '../services/session_store.dart';
 import '../services/sync_service.dart';
 
@@ -14,12 +15,14 @@ class AuthProvider extends ChangeNotifier {
   final SessionStore store;
   final LocationService location;
   final SyncService sync;
+  final PresenceService presence;
 
   AuthProvider({
     required this.api,
     required this.store,
     required this.location,
     required this.sync,
+    required this.presence,
   });
 
   AuthStatus status = AuthStatus.unknown;
@@ -35,6 +38,7 @@ class AuthProvider extends ChangeNotifier {
       status = AuthStatus.authenticated;
       sync.start();
       sync.syncNow();
+      presence.enable();
     } else {
       status = AuthStatus.unauthenticated;
     }
@@ -90,6 +94,7 @@ class AuthProvider extends ChangeNotifier {
     status = AuthStatus.authenticated;
     sync.start();
     sync.syncNow();
+    presence.enable();
     notifyListeners();
   }
 
@@ -100,6 +105,7 @@ class AuthProvider extends ChangeNotifier {
     user = null;
     status = AuthStatus.unauthenticated;
     sync.dispose();
+    presence.disable();
     notifyListeners();
   }
 }

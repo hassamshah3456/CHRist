@@ -63,6 +63,8 @@ class User(Base):
     last_lat = Column(Float, nullable=True)
     last_lng = Column(Float, nullable=True)
     last_address = Column(String(512), nullable=True)
+    active_session_id = Column(String(36), nullable=True)
+    app_seconds = Column(Integer, nullable=False, default=0)
 
     created_at = Column(DateTime, default=datetime.utcnow)
 

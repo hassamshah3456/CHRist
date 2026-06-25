@@ -11,6 +11,9 @@ const $ = (sel) => document.querySelector(sel);
 const charts = {};
 let map, markersLayer;
 let lastCollections = [];
+let allCollectors = [];
+let groups = [];
+let selectedGroup = null;
 
 /* ---------- helpers ---------- */
 function getToken() { return localStorage.getItem(TOKEN_KEY); }
@@ -51,6 +54,17 @@ function fmtAge(years, months) {
   if (years != null) parts.push(`${years}y`);
   if (months != null && months > 0) parts.push(`${months}m`);
   return parts.length ? parts.join(" ") : "—";
+}
+function fmtDuration(seconds) {
+  const total = Math.max(0, Number(seconds) || 0);
+  const hours = Math.floor(total / 3600);
+  const mins = Math.floor((total % 3600) / 60);
+  if (hours) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+function collectorLocation(c) {
+  return c.last_address
+    || (c.last_lat != null ? `${c.last_lat.toFixed(4)}, ${c.last_lng.toFixed(4)}` : "—");
 }
 
 /* ---------- auth ---------- */
@@ -119,6 +133,7 @@ async function loadCollections() {
 
 async function loadCollectors() {
   const data = await api("/api/collectors");
+  allCollectors = data;
   renderCollectors(data);
   renderMapSignups(data);
 }
@@ -284,17 +299,19 @@ function renderCollections(rows) {
 function renderCollectors(rows) {
   const tbody = $("#collectors-table tbody");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">No collectors yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No collectors yet.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((c) => `
     <tr>
-      <td>${c.name}</td>
-      <td>${c.email}</td>
-      <td>${c.upi_address || "—"}</td>
+      <td>${escapeHtml(c.name)}</td>
+      <td>${escapeHtml(c.email)}</td>
+      <td>${escapeHtml(c.upi_address || "—")}</td>
       <td><b>${c.total}</b></td>
-      <td>${fmtDate(c.last_collection)}</td>
-      <td>${c.signup_address || (c.signup_lat != null ? `${c.signup_lat.toFixed(4)}, ${c.signup_lng.toFixed(4)}` : "—")}</td>
+      <td><span class="presence ${c.online ? "online" : ""}">${c.online ? "Online" : "Offline"}</span></td>
+      <td>${fmtDate(c.last_seen || c.last_collection)}</td>
+      <td>${escapeHtml(collectorLocation(c))}</td>
+      <td>${fmtDuration(c.app_seconds)}</td>
     </tr>`).join("");
 }
 
@@ -386,14 +403,142 @@ function switchView(view) {
   document.querySelectorAll(".nav-btn").forEach((b) =>
     b.classList.toggle("active", b.dataset.view === view));
   $("#view-dashboard").classList.toggle("hidden", view !== "dashboard");
+  $("#view-groups").classList.toggle("hidden", view !== "groups");
   $("#view-questionnaire").classList.toggle("hidden", view !== "questionnaire");
   $("#view-payments").classList.toggle("hidden", view !== "payments");
-  if (view === "questionnaire") loadQuestions();
+  if (view === "groups") loadGroups();
+  else if (view === "questionnaire") loadQuestions();
   else if (view === "payments") loadPayments();
   else setTimeout(() => map && map.invalidateSize(), 100);
 }
 document.querySelectorAll(".nav-btn").forEach((b) =>
   b.addEventListener("click", () => switchView(b.dataset.view)));
+
+/* ---------- collector groups ---------- */
+async function loadGroups() {
+  try {
+    if (!allCollectors.length) allCollectors = await api("/api/collectors");
+    groups = await api("/api/groups?period=" + currentPeriod());
+    renderGroups();
+    if (selectedGroup) {
+      const stillExists = groups.some((g) => g.id === selectedGroup.id);
+      if (stillExists) await openGroup(selectedGroup.id);
+      else clearGroupDetail();
+    }
+  } catch (e) { alert(e.message); }
+}
+
+function renderGroups() {
+  const wrap = $("#groups-grid");
+  if (!groups.length) {
+    wrap.innerHTML = `<div class="empty">No groups yet. Create one and select its collectors.</div>`;
+    return;
+  }
+  wrap.innerHTML = groups.map((g) => `
+    <article class="group-card ${selectedGroup && selectedGroup.id === g.id ? "active" : ""}"
+      data-group-id="${g.id}">
+      <h4>${escapeHtml(g.name)}</h4>
+      <div class="group-metrics">
+        <div class="group-metric"><b>${g.members_count}</b>Collectors</div>
+        <div class="group-metric"><b>${g.collections_count}</b>Collections</div>
+        <div class="group-metric"><b>${g.online_count}</b>Online</div>
+      </div>
+    </article>`).join("");
+}
+
+async function openGroup(id) {
+  selectedGroup = await api(`/api/groups/${id}?period=${currentPeriod()}`);
+  renderGroups();
+  $("#group-detail-card").classList.remove("hidden");
+  $("#group-detail-name").textContent = selectedGroup.name;
+  $("#group-detail-summary").textContent =
+    `${selectedGroup.members_count} collectors · ${selectedGroup.collections_count} collections · ${selectedGroup.online_count} online`;
+  const tbody = $("#group-members-table tbody");
+  if (!selectedGroup.members.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">This group has no collectors.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = selectedGroup.members.map((c) => `
+    <tr>
+      <td><span class="presence ${c.online ? "online" : ""}">${c.online ? "Online" : "Offline"}</span></td>
+      <td><b>${escapeHtml(c.name)}</b><br><small>${escapeHtml(c.email)}</small></td>
+      <td><b>${c.total}</b></td>
+      <td>${fmtDate(c.last_seen)}</td>
+      <td>${escapeHtml(collectorLocation(c))}</td>
+      <td>${fmtDuration(c.app_seconds)}</td>
+    </tr>`).join("");
+}
+
+function clearGroupDetail() {
+  selectedGroup = null;
+  $("#group-detail-card").classList.add("hidden");
+  renderGroups();
+}
+
+function groupForm(group) {
+  const selected = new Set(group ? group.members.map((m) => m.id) : []);
+  const options = allCollectors.length
+    ? allCollectors.map((c) => `
+      <label class="member-option">
+        <input type="checkbox" value="${c.id}" ${selected.has(c.id) ? "checked" : ""}>
+        <span>${escapeHtml(c.name)}<small>${escapeHtml(c.email)} · ${c.total} collections</small></span>
+      </label>`).join("")
+    : `<div class="empty">No collectors available.</div>`;
+  return `
+    <h3>${group ? "Edit collector group" : "Create collector group"}</h3>
+    <label>Group name</label>
+    <input type="text" id="group-name" value="${escapeHtml(group ? group.name : "")}"
+      placeholder="e.g. North Zone Team" />
+    <label>Select collectors</label>
+    <div class="member-picker" id="member-picker">${options}</div>
+    <div class="modal-actions">
+      <button class="cancel" id="group-cancel">Cancel</button>
+      <button class="btn-primary" id="group-save">${group ? "Save changes" : "Create group"}</button>
+    </div>`;
+}
+
+function openGroupModal(group = null) {
+  openModal(groupForm(group));
+  $("#group-cancel").addEventListener("click", closeModal);
+  $("#group-save").addEventListener("click", () => saveGroup(group && group.id));
+}
+
+async function saveGroup(id) {
+  const name = $("#group-name").value.trim();
+  if (!name) { alert("Enter a group name."); return; }
+  const member_ids = [...document.querySelectorAll("#member-picker input:checked")]
+    .map((input) => input.value);
+  try {
+    const saved = await api(id ? `/api/groups/${id}` : "/api/groups", {
+      method: id ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, member_ids }),
+    });
+    closeModal();
+    selectedGroup = saved;
+    await loadGroups();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteSelectedGroup() {
+  if (!selectedGroup) return;
+  if (!confirm(`Delete the group “${selectedGroup.name}”? Collectors and submissions will not be deleted.`)) return;
+  try {
+    await api(`/api/groups/${selectedGroup.id}`, { method: "DELETE" });
+    clearGroupDetail();
+    await loadGroups();
+  } catch (e) { alert(e.message); }
+}
+
+$("#groups-grid").addEventListener("click", (e) => {
+  const card = e.target.closest("[data-group-id]");
+  if (card) openGroup(card.dataset.groupId);
+});
+$("#add-group-btn").addEventListener("click", () => openGroupModal());
+$("#edit-group-btn").addEventListener("click", () => {
+  if (selectedGroup) openGroupModal(selectedGroup);
+});
+$("#delete-group-btn").addEventListener("click", deleteSelectedGroup);
 
 /* ---------- payments ---------- */
 let payCurrency = "₹";
@@ -699,7 +844,11 @@ $("#login-form").addEventListener("submit", async (e) => {
 
 $("#logout-btn").addEventListener("click", logout);
 $("#refresh-btn").addEventListener("click", refreshAll);
-$("#period").addEventListener("change", () => { loadStats(); loadCollections(); });
+$("#period").addEventListener("change", () => {
+  loadStats();
+  loadCollections();
+  if (!$("#view-groups").classList.contains("hidden")) loadGroups();
+});
 $("#export-btn").addEventListener("click", exportCsv);
 $("#search").addEventListener("input", () => renderCollections(lastCollections));
 

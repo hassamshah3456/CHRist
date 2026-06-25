@@ -80,6 +80,9 @@ extra install is needed.
 | GET    | `/api/stats`          | **Admin**: project-wide stats + breakdowns + per-collector |
 | GET    | `/api/collections`    | **Admin**: all collectors' submissions (filterable) |
 | GET    | `/api/collectors`     | **Admin**: collector list + counts + sign-up location |
+| POST   | `/auth/heartbeat`     | Collector presence, latest location, and foreground app time |
+| GET/POST | `/api/groups`       | **Admin**: list/create collector groups |
+| GET/PUT/DELETE | `/api/groups/{id}` | **Admin**: group members and individual activity |
 | GET    | `/api/export.csv`     | **Admin**: CSV export of submissions     |
 
 ### Admin web dashboard (served at `/admin`)

@@ -20,6 +20,7 @@ from ..config import settings
 from ..database import get_db
 
 router = APIRouter(prefix="/api", tags=["admin"])
+ONLINE_WINDOW = timedelta(minutes=2)
 
 
 def _answers_by_collection(db: Session, collection_ids: List[str]):
@@ -72,6 +73,59 @@ def _apply_period(query, period: str):
             models.Collection.collected_at >= today - timedelta(days=30)
         )
     return query  # "all"
+
+
+def _is_online(user: models.User, now: Optional[datetime] = None) -> bool:
+    now = now or datetime.utcnow()
+    return bool(user.last_seen and user.last_seen >= now - ONLINE_WINDOW)
+
+
+def _collector_summaries(
+    db: Session,
+    users: List[models.User],
+    period: str = "all",
+) -> List[schemas.CollectorSummary]:
+    user_ids = [u.id for u in users if not u.is_admin]
+    if not user_ids:
+        return []
+    q = db.query(models.Collection).filter(
+        models.Collection.user_id.in_(user_ids)
+    )
+    q = _apply_period(q, period)
+    cols = q.all()
+    by_user_count = Counter(c.user_id for c in cols)
+    last_by_user = {}
+    for c in cols:
+        if c.collected_at and (
+            c.user_id not in last_by_user
+            or c.collected_at > last_by_user[c.user_id]
+        ):
+            last_by_user[c.user_id] = c.collected_at
+    now = datetime.utcnow()
+    rows = [
+        schemas.CollectorSummary(
+            id=u.id,
+            name=u.name,
+            email=u.email,
+            upi_address=u.upi_address,
+            upi_name=u.upi_name,
+            total=by_user_count.get(u.id, 0),
+            last_collection=last_by_user.get(u.id),
+            signup_lat=u.signup_lat,
+            signup_lng=u.signup_lng,
+            signup_address=u.signup_address,
+            online=_is_online(u, now),
+            last_seen=u.last_seen,
+            last_lat=u.last_lat,
+            last_lng=u.last_lng,
+            last_address=u.last_address,
+            app_seconds=u.app_seconds or 0,
+        )
+        for u in users
+        if not u.is_admin
+    ]
+    rows.sort(key=lambda c: (not c.online, -c.total, c.name.lower()))
+    return rows
 
 
 @router.get("/stats", response_model=schemas.AdminStats)
@@ -154,33 +208,7 @@ def admin_stats(
         reverse=True,
     )
 
-    # Per-collector rollup.
-    by_user_count = Counter(c.user_id for c in cols)
-    last_by_user = {}
-    for c in cols:
-        if c.collected_at and (
-            c.user_id not in last_by_user
-            or c.collected_at > last_by_user[c.user_id]
-        ):
-            last_by_user[c.user_id] = c.collected_at
-
-    collectors = [
-        schemas.CollectorSummary(
-            id=u.id,
-            name=u.name,
-            email=u.email,
-            upi_address=u.upi_address,
-            upi_name=u.upi_name,
-            total=by_user_count.get(u.id, 0),
-            last_collection=last_by_user.get(u.id),
-            signup_lat=u.signup_lat,
-            signup_lng=u.signup_lng,
-            signup_address=u.signup_address,
-        )
-        for u in users
-        if not u.is_admin  # don't list admin accounts as collectors
-    ]
-    collectors.sort(key=lambda c: c.total, reverse=True)
+    collectors = _collector_summaries(db, users)
 
     return schemas.AdminStats(
         total=total,
@@ -268,8 +296,115 @@ def admin_collectors(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    # Reuse the rollup from admin_stats for consistency.
-    return admin_stats(db=db, admin=admin).collectors
+    users = db.query(models.User).filter(models.User.is_admin == False).all()  # noqa: E712
+    return _collector_summaries(db, users)
+
+
+# ---------- Collector groups ----------
+def _group_or_404(db: Session, group_id: str) -> models.CollectorGroup:
+    group = db.query(models.CollectorGroup).filter(
+        models.CollectorGroup.id == group_id
+    ).first()
+    if group is None:
+        raise HTTPException(404, "Collector group not found.")
+    return group
+
+
+def _validated_members(db: Session, member_ids: List[str]) -> List[models.User]:
+    ids = list(dict.fromkeys(member_ids))
+    members = db.query(models.User).filter(models.User.id.in_(ids)).all() if ids else []
+    found = {u.id for u in members if not u.is_admin}
+    if len(found) != len(ids):
+        raise HTTPException(400, "One or more selected collectors are invalid.")
+    return [u for u in members if not u.is_admin]
+
+
+@router.get("/groups", response_model=List[schemas.CollectorGroupSummary])
+def list_groups(
+    period: str = Query("all", pattern="^(today|yesterday|week|month|all)$"),
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    groups = db.query(models.CollectorGroup).order_by(
+        models.CollectorGroup.created_at.desc()
+    ).all()
+    result = []
+    for group in groups:
+        members = _collector_summaries(db, list(group.members), period)
+        result.append(schemas.CollectorGroupSummary(
+            id=group.id,
+            name=group.name,
+            members_count=len(members),
+            collections_count=sum(m.total for m in members),
+            online_count=sum(1 for m in members if m.online),
+            created_at=group.created_at,
+        ))
+    return result
+
+
+@router.post("/groups", response_model=schemas.CollectorGroupDetail, status_code=201)
+def create_group(
+    body: schemas.CollectorGroupIn,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    if not body.name.strip():
+        raise HTTPException(400, "Group name is required.")
+    group = models.CollectorGroup(
+        name=body.name.strip(),
+        members=_validated_members(db, body.member_ids),
+    )
+    db.add(group)
+    db.commit()
+    db.refresh(group)
+    return group_detail(group.id, "all", db, admin)
+
+
+@router.put("/groups/{group_id}", response_model=schemas.CollectorGroupDetail)
+def update_group(
+    group_id: str,
+    body: schemas.CollectorGroupIn,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    group = _group_or_404(db, group_id)
+    if not body.name.strip():
+        raise HTTPException(400, "Group name is required.")
+    group.name = body.name.strip()
+    group.members = _validated_members(db, body.member_ids)
+    db.commit()
+    return group_detail(group.id, "all", db, admin)
+
+
+@router.get("/groups/{group_id}", response_model=schemas.CollectorGroupDetail)
+def group_detail(
+    group_id: str,
+    period: str = Query("all", pattern="^(today|yesterday|week|month|all)$"),
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    group = _group_or_404(db, group_id)
+    members = _collector_summaries(db, list(group.members), period)
+    return schemas.CollectorGroupDetail(
+        id=group.id,
+        name=group.name,
+        members_count=len(members),
+        collections_count=sum(m.total for m in members),
+        online_count=sum(1 for m in members if m.online),
+        created_at=group.created_at,
+        members=members,
+    )
+
+
+@router.delete("/groups/{group_id}", status_code=204)
+def delete_group(
+    group_id: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    group = _group_or_404(db, group_id)
+    db.delete(group)
+    db.commit()
 
 
 @router.get("/export.csv")

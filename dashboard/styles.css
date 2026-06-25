@@ -139,6 +139,10 @@ small { color: var(--muted); font-weight: 400; }
   padding: 9px 14px; border-radius: 10px; cursor: pointer; font-size: 14px;
 }
 .btn-primary:hover { background: var(--primary-dark); }
+.btn-danger {
+  border: 1px solid #f3c9c5; background: #fff; color: var(--danger);
+  font-weight: 700; padding: 8px 13px; border-radius: 10px; cursor: pointer;
+}
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { text-align: left; padding: 11px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -255,3 +259,41 @@ tr.grouped td:first-child { border-left: 3px solid var(--primary); }
 .ans-v .no { color: var(--danger); font-weight: 700; }
 .ans-photo { margin-top: 8px; max-width: 220px; border-radius: 10px; border: 1px solid var(--border); }
 .hint { color: var(--muted); font-size: 12px; }
+
+/* ---------- Collector groups ---------- */
+.groups-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px; margin-top: 16px;
+}
+.group-card {
+  border: 1px solid var(--border); border-radius: 14px; padding: 16px;
+  background: #fbfcff; cursor: pointer; transition: .15s ease;
+}
+.group-card:hover { border-color: #b8c7ee; transform: translateY(-1px); }
+.group-card.active { border-color: var(--primary); background: #f3f6ff; }
+.group-card h4 { margin: 0 0 12px; font-size: 16px; }
+.group-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.group-metric { color: var(--muted); font-size: 11px; }
+.group-metric b { display: block; color: var(--text); font-size: 20px; margin-bottom: 2px; }
+.group-actions { display: flex; gap: 8px; }
+.presence {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+  font-weight: 700; color: var(--muted);
+}
+.presence::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%;
+  background: #aab1bf;
+}
+.presence.online { color: var(--success); }
+.presence.online::before { background: var(--success); box-shadow: 0 0 0 3px #e7f7ec; }
+.member-picker {
+  max-height: 320px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: 10px; margin-top: 8px;
+}
+.member-option {
+  display: flex !important; align-items: center; gap: 10px; margin: 0 !important;
+  padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.member-option:last-child { border-bottom: none; }
+.member-option span { display: flex; flex-direction: column; }
+.member-option small { margin-top: 2px; }

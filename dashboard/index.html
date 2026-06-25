@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=5" />
+  <link rel="stylesheet" href="styles.css?v=6" />
 </head>
 <body>
 
@@ -42,6 +42,7 @@
       <span class="topbar-title">UsmleWise CHRIST</span>
       <nav class="nav">
         <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+        <button class="nav-btn" data-view="groups">Groups</button>
         <button class="nav-btn" data-view="questionnaire">Questionnaire</button>
         <button class="nav-btn" data-view="payments">Payments</button>
       </nav>
@@ -143,7 +144,8 @@
             <thead>
               <tr>
                 <th>Collector</th><th>Email</th><th>UPI</th>
-                <th>Collections</th><th>Last active</th><th>Sign-up area</th>
+                <th>Collections</th><th>Status</th><th>Last active</th>
+                <th>Current location</th><th>Time in app</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -153,6 +155,44 @@
     </section>
 
     </div><!-- /view-dashboard -->
+
+    <!-- ===== COLLECTOR GROUPS ===== -->
+    <div id="view-groups" class="hidden">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h3 style="margin-bottom:4px">Collector groups</h3>
+            <small>Create teams and monitor their collections, presence, location, and app time.</small>
+          </div>
+          <button class="btn-primary" id="add-group-btn">＋ Create group</button>
+        </div>
+        <div id="groups-grid" class="groups-grid"></div>
+      </section>
+
+      <section class="card hidden" id="group-detail-card">
+        <div class="card-head">
+          <div>
+            <h3 id="group-detail-name" style="margin-bottom:4px"></h3>
+            <small id="group-detail-summary"></small>
+          </div>
+          <div class="group-actions">
+            <button class="btn-ghost" id="edit-group-btn">Edit members</button>
+            <button class="btn-danger" id="delete-group-btn">Delete</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table id="group-members-table">
+            <thead>
+              <tr>
+                <th>Status</th><th>Collector</th><th>Collections</th>
+                <th>Last seen</th><th>Current location</th><th>Time in app</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
 
     <!-- ===== QUESTIONNAIRE MANAGEMENT ===== -->
     <div id="view-questionnaire" class="hidden">
@@ -217,6 +257,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>
