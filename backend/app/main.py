@@ -53,10 +53,15 @@ def _ensure_columns():
             continue  # table not present yet; create_all handles fresh installs
         for name, ddl in columns.items():
             if name not in existing:
-                with engine.begin() as conn:
-                    conn.execute(
-                        text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
-                    )
+                try:
+                    with engine.begin() as conn:
+                        conn.execute(
+                            text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+                        )
+                except Exception:
+                    # Another worker added it first (Gunicorn forks several
+                    # workers that each import this module) — safe to ignore.
+                    pass
 
 
 _ensure_columns()
