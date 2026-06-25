@@ -30,6 +30,9 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
 
+    # Role: admins can view all collectors' data via the web dashboard.
+    is_admin = Column(Boolean, nullable=False, default=False)
+
     # Payment details
     upi_address = Column(String(255), nullable=False)  # e.g. name@bank
     upi_name = Column(String(255), nullable=True)      # account holder if different

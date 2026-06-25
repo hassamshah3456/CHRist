@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UsmleWise CHRIST — Management</title>
+
+  <!-- Chart.js + Leaflet (CDN) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ===== LOGIN ===== -->
+<div id="login-view" class="login-wrap">
+  <form id="login-form" class="login-card">
+    <div class="brand">
+      <div class="brand-badge">✦</div>
+      <div>
+        <div class="brand-name">UsmleWise <span>CHRIST</span></div>
+        <div class="brand-sub">Management Dashboard</div>
+      </div>
+    </div>
+    <label>Email</label>
+    <input id="login-email" type="email" autocomplete="username" required />
+    <label>Password</label>
+    <input id="login-password" type="password" autocomplete="current-password" required />
+    <button type="submit" id="login-btn">Sign in</button>
+    <div id="login-error" class="error"></div>
+  </form>
+  <p class="login-foot">Admin access only.</p>
+</div>
+
+<!-- ===== APP ===== -->
+<div id="app-view" class="hidden">
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="brand-badge sm">✦</div>
+      <span class="topbar-title">UsmleWise CHRIST</span>
+      <span class="pill">Management</span>
+    </div>
+    <div class="topbar-right">
+      <select id="period">
+        <option value="today">Today</option>
+        <option value="yesterday">Yesterday</option>
+        <option value="week">Last week</option>
+        <option value="month" selected>Last month</option>
+        <option value="all">All time</option>
+      </select>
+      <button class="btn-ghost" id="refresh-btn" title="Refresh">↻</button>
+      <span id="user-chip" class="user-chip"></span>
+      <button class="btn-ghost" id="logout-btn">Logout</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- KPIs -->
+    <section class="kpi-grid" id="kpi-grid"></section>
+
+    <!-- Charts -->
+    <section class="grid-2">
+      <div class="card">
+        <h3>Collections over time <small>(last 30 days)</small></h3>
+        <canvas id="chart-trend" height="120"></canvas>
+      </div>
+      <div class="card">
+        <h3>Verbal consent</h3>
+        <canvas id="chart-consent" height="120"></canvas>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <div class="card">
+        <h3>Child sex</h3>
+        <canvas id="chart-sex" height="120"></canvas>
+      </div>
+      <div class="card">
+        <h3>Responder</h3>
+        <canvas id="chart-responder" height="120"></canvas>
+      </div>
+    </section>
+
+    <!-- Map -->
+    <section class="card">
+      <div class="card-head">
+        <h3>Geo-tagged locations</h3>
+        <div class="legend">
+          <span class="dot dot-collection"></span> Collections
+          <span class="dot dot-signup"></span> Collector sign-ups
+        </div>
+      </div>
+      <div id="map"></div>
+    </section>
+
+    <!-- Tabs: Collections / Collectors -->
+    <section class="card">
+      <div class="tabs">
+        <button class="tab active" data-tab="collections">Submissions</button>
+        <button class="tab" data-tab="collectors">Collectors</button>
+        <div class="tabs-spacer"></div>
+        <input id="search" class="search" placeholder="Search…" />
+        <button class="btn-primary" id="export-btn">⬇ Export CSV</button>
+      </div>
+
+      <div id="tab-collections" class="tab-panel">
+        <div class="table-wrap">
+          <table id="collections-table">
+            <thead>
+              <tr>
+                <th>When</th><th>Collector</th><th>Age</th><th>Sex</th>
+                <th>Responder</th><th>Consent</th><th>Location</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="tab-collectors" class="tab-panel hidden">
+        <div class="table-wrap">
+          <table id="collectors-table">
+            <thead>
+              <tr>
+                <th>Collector</th><th>Email</th><th>UPI</th>
+                <th>Collections</th><th>Last active</th><th>Sign-up area</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <footer class="foot">UsmleWise CHRIST · data is synced from the field app in real time.</footer>
+  </main>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

@@ -32,6 +32,7 @@ class UserOut(BaseModel):
     email: EmailStr
     upi_address: str
     upi_name: Optional[str] = None
+    is_admin: bool = False
 
     class Config:
         from_attributes = True
@@ -92,3 +93,57 @@ class StatsResponse(BaseModel):
     this_month: int
     consent_yes: int
     consent_no: int
+
+
+# ---------- Admin dashboard ----------
+class DailyPoint(BaseModel):
+    date: str   # YYYY-MM-DD
+    count: int
+
+
+class BreakdownItem(BaseModel):
+    label: str
+    count: int
+
+
+class CollectorSummary(BaseModel):
+    id: str
+    name: str
+    email: EmailStr
+    upi_address: str
+    upi_name: Optional[str] = None
+    total: int
+    last_collection: Optional[datetime] = None
+    signup_lat: Optional[float] = None
+    signup_lng: Optional[float] = None
+    signup_address: Optional[str] = None
+
+
+class AdminStats(BaseModel):
+    total: int
+    today: int
+    this_week: int
+    this_month: int
+    consent_yes: int
+    consent_no: int
+    collectors_count: int
+    daily: List[DailyPoint]               # last 30 days
+    sex_breakdown: List[BreakdownItem]
+    responder_breakdown: List[BreakdownItem]
+    collectors: List[CollectorSummary]
+
+
+class AdminCollectionOut(BaseModel):
+    id: str
+    user_id: str
+    collector_name: str
+    collector_email: Optional[str] = None
+    verbal_consent: bool
+    child_age: Optional[int] = None
+    child_sex: Optional[str] = None
+    responder: Optional[str] = None
+    responder_other: Optional[str] = None
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    location_address: Optional[str] = None
+    collected_at: datetime

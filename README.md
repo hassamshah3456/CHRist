@@ -76,7 +76,28 @@ extra install is needed.
 | GET    | `/me`                 | Current user                             |
 | POST   | `/collections/sync`   | Upsert queued collections (idempotent)   |
 | GET    | `/collections?period=`| List by `today\|yesterday\|week\|month\|all` |
-| GET    | `/stats`              | Dashboard counters                       |
+| GET    | `/stats`              | Dashboard counters (current user)        |
+| GET    | `/api/stats`          | **Admin**: project-wide stats + breakdowns + per-collector |
+| GET    | `/api/collections`    | **Admin**: all collectors' submissions (filterable) |
+| GET    | `/api/collectors`     | **Admin**: collector list + counts + sign-up location |
+| GET    | `/api/export.csv`     | **Admin**: CSV export of submissions     |
+
+### Admin web dashboard (served at `/admin`)
+
+A management/visualization dashboard is served by the same API at
+**`https://api.usmlewise.com/admin`** (no separate hosting, same origin, no
+CORS). It provides login, KPIs, a 30-day trend chart, consent/sex/responder
+breakdowns, a **Leaflet map** of geo-tagged collections and collector sign-up
+locations, a searchable submissions table, a per-collector view, and **CSV
+export**.
+
+It requires an **admin** account. Create one on the server (inside the venv,
+from the `backend/` dir):
+```bash
+python manage.py create-admin --email you@usmlewise.com --password 'StrongPass1' --name 'Admin'
+```
+This also promotes an existing user (matched by email) to admin. Then sign in at
+`/admin`. Admin accounts are management-only and are not listed as collectors.
 
 ---
 
