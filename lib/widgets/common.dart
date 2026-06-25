@@ -13,14 +13,23 @@ class BrandLogo extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 76,
-          height: 76,
-          decoration: BoxDecoration(
-            color: light ? Colors.white24 : AppTheme.primary.withOpacity(.1),
-            borderRadius: BorderRadius.circular(22),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Image.asset(
+            'assets/logo.png',
+            width: 76,
+            height: 76,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Container(
+              width: 76,
+              height: 76,
+              decoration: BoxDecoration(
+                color: light ? Colors.white24 : AppTheme.primary.withOpacity(.1),
+                borderRadius: BorderRadius.circular(22),
+              ),
+              child: Icon(Icons.fact_check_rounded, size: 40, color: color),
+            ),
           ),
-          child: Icon(Icons.fact_check_rounded, size: 40, color: color),
         ),
         const SizedBox(height: 14),
         Text(

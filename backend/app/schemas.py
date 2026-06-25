@@ -198,6 +198,12 @@ class CollectorSummary(BaseModel):
     signup_lat: Optional[float] = None
     signup_lng: Optional[float] = None
     signup_address: Optional[str] = None
+    # Live presence (from the app heartbeat)
+    online: bool = False
+    last_seen: Optional[datetime] = None
+    last_lat: Optional[float] = None
+    last_lng: Optional[float] = None
+    last_address: Optional[str] = None
 
 
 class AdminStats(BaseModel):

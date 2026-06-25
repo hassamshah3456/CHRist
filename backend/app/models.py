@@ -10,11 +10,22 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Table,
     Text,
 )
 from sqlalchemy.orm import relationship
 
 from .database import Base
+
+
+# Many-to-many: a collector can belong to several groups.
+group_members = Table(
+    "group_members",
+    Base.metadata,
+    Column("group_id", String(36), ForeignKey("collector_groups.id"),
+           primary_key=True),
+    Column("user_id", String(36), ForeignKey("users.id"), primary_key=True),
+)
 
 
 def _uuid() -> str:
@@ -46,9 +57,19 @@ class User(Base):
     # Whether the one-time training fee has been paid out to this collector.
     training_paid = Column(Boolean, nullable=False, default=False)
 
+    # Presence: updated by the app's heartbeat so admins can see who is online
+    # right now and where.
+    last_seen = Column(DateTime, nullable=True)
+    last_lat = Column(Float, nullable=True)
+    last_lng = Column(Float, nullable=True)
+    last_address = Column(String(512), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     collections = relationship("Collection", back_populates="user")
+    groups = relationship(
+        "CollectorGroup", secondary=group_members, back_populates="members"
+    )
 
 
 class Collection(Base):
@@ -169,3 +190,16 @@ class Payout(Base):
     per_entry = Column(Float, nullable=False, default=0)
     training_included = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+
+class CollectorGroup(Base):
+    """An admin-defined group of collectors, for filtered reporting."""
+    __tablename__ = "collector_groups"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    name = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    members = relationship(
+        "User", secondary=group_members, back_populates="groups"
+    )
