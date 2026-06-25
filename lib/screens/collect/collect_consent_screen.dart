@@ -6,6 +6,7 @@ import '../../services/location_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import 'collect_child_screen.dart';
+import 'step_indicator.dart';
 
 /// Step 1 of a collection.
 ///
@@ -68,7 +69,7 @@ class _CollectConsentScreenState extends State<CollectConsentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const _StepIndicator(step: 1),
+              const StepIndicator(step: 1),
               const SizedBox(height: 18),
               SectionCard(
                 child: Row(
@@ -159,42 +160,3 @@ class _LocationStatus extends StatelessWidget {
   }
 }
 
-class _StepIndicator extends StatelessWidget {
-  final int step; // 1 or 2
-  const _StepIndicator({required this.step});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget dot(int n, String label) {
-      final active = n <= step;
-      return Expanded(
-        child: Column(
-          children: [
-            Container(
-              height: 6,
-              decoration: BoxDecoration(
-                color: active ? AppTheme.primary : const Color(0xFFDADFEA),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: active ? AppTheme.primary : AppTheme.textMuted,
-                  fontWeight: FontWeight.w600,
-                )),
-          ],
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        dot(1, 'Consent'),
-        const SizedBox(width: 10),
-        dot(2, 'About child'),
-      ],
-    );
-  }
-}

@@ -36,6 +36,9 @@ dependencies:
   # Connectivity (drives auto-sync when internet returns)
   connectivity_plus: ^6.0.3
 
+  # Photo capture for questionnaire (e.g. OPD card)
+  image_picker: ^1.1.2
+
   # Misc
   intl: ^0.19.0
   uuid: ^4.4.0

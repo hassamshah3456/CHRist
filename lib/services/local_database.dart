@@ -21,7 +21,7 @@ class LocalDatabase {
     final path = p.join(dir, 'usmlewise_christ.db');
     return openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE collections (
@@ -36,11 +36,25 @@ class LocalDatabase {
             location_lng REAL,
             location_address TEXT,
             collected_at TEXT,
-            synced INTEGER DEFAULT 0
+            synced INTEGER DEFAULT 0,
+            answers_json TEXT
           )
         ''');
       },
+      onUpgrade: (db, oldV, newV) async {
+        if (oldV < 2) {
+          await db.execute('ALTER TABLE collections ADD COLUMN answers_json TEXT');
+        }
+      },
     );
+  }
+
+  /// Replace an existing local record (e.g. after a photo upload sets the
+  /// server filename on an answer).
+  Future<void> update(Collection c) async {
+    final db = await _database;
+    await db.update('collections', c.toDbMap(),
+        where: 'id = ?', whereArgs: [c.id]);
   }
 
   Future<void> insert(Collection c) async {

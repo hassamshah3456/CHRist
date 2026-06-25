@@ -52,6 +52,17 @@ class ApiClient {
     return _decode(res);
   }
 
+  /// Uploads a photo file (multipart) and returns the server-side filename.
+  Future<String> uploadPhoto(String filePath) async {
+    final req = http.MultipartRequest('POST', _uri('/collections/photo'));
+    if (_token != null) req.headers['Authorization'] = 'Bearer $_token';
+    req.files.add(await http.MultipartFile.fromPath('file', filePath));
+    final streamed = await req.send().timeout(const Duration(seconds: 60));
+    final res = await http.Response.fromStream(streamed);
+    final body = _decode(res);
+    return (body as Map)['filename'] as String;
+  }
+
   dynamic _decode(http.Response res) {
     final isJson = (res.headers['content-type'] ?? '').contains('json');
     final body = res.body.isNotEmpty && isJson ? jsonDecode(res.body) : null;

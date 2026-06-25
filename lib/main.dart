@@ -7,6 +7,7 @@ import 'providers/collection_provider.dart';
 import 'services/api_client.dart';
 import 'services/local_database.dart';
 import 'services/location_service.dart';
+import 'services/questionnaire_service.dart';
 import 'services/session_store.dart';
 import 'services/sync_service.dart';
 import 'screens/splash_screen.dart';
@@ -21,6 +22,7 @@ void main() {
   final location = LocationService();
   final sync = SyncService(api, db);
   final store = SessionStore();
+  final questionnaire = QuestionnaireService(api);
 
   runApp(
     MultiProvider(
@@ -38,6 +40,7 @@ void main() {
         ),
         Provider<LocationService>.value(value: location),
         Provider<SyncService>.value(value: sync),
+        Provider<QuestionnaireService>.value(value: questionnaire),
       ],
       child: const UsmleWiseApp(),
     ),

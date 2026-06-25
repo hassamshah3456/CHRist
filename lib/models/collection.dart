@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'answer.dart';
+
 /// A single data-collection record.
 ///
 /// Created on-device (possibly offline), stored in local SQLite, and later
@@ -15,6 +19,7 @@ class Collection {
   final String? locationAddress;
   final DateTime collectedAt;
   final bool synced;
+  final List<CollectionAnswer> answers;
 
   const Collection({
     required this.id,
@@ -29,6 +34,7 @@ class Collection {
     this.locationAddress,
     required this.collectedAt,
     this.synced = false,
+    this.answers = const [],
   });
 
   Collection copyWith({bool? synced}) => Collection(
@@ -44,6 +50,7 @@ class Collection {
         locationAddress: locationAddress,
         collectedAt: collectedAt,
         synced: synced ?? this.synced,
+        answers: answers,
       );
 
   /// For the sync request body sent to the server.
@@ -58,9 +65,10 @@ class Collection {
         'location_lng': locationLng,
         'location_address': locationAddress,
         'collected_at': collectedAt.toUtc().toIso8601String(),
+        'answers': answers.map((a) => a.toApiJson()).toList(),
       };
 
-  /// For local SQLite (booleans stored as 0/1).
+  /// For local SQLite (booleans stored as 0/1; answers as a JSON string).
   Map<String, dynamic> toDbMap() => {
         'id': id,
         'collector_name': collectorName,
@@ -74,6 +82,7 @@ class Collection {
         'location_address': locationAddress,
         'collected_at': collectedAt.toIso8601String(),
         'synced': synced ? 1 : 0,
+        'answers_json': jsonEncode(answers.map((a) => a.toJson()).toList()),
       };
 
   factory Collection.fromDbMap(Map<String, dynamic> m) => Collection(
@@ -89,7 +98,20 @@ class Collection {
         locationAddress: m['location_address'] as String?,
         collectedAt: DateTime.parse(m['collected_at'] as String),
         synced: (m['synced'] as int? ?? 0) == 1,
+        answers: _decodeAnswers(m['answers_json'] as String?),
       );
+
+  static List<CollectionAnswer> _decodeAnswers(String? raw) {
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final list = jsonDecode(raw) as List;
+      return list
+          .map((e) => CollectionAnswer.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
 
   /// Records returned by the server are always considered synced.
   factory Collection.fromApiJson(Map<String, dynamic> j) => Collection(

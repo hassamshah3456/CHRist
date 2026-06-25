@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
+import '../models/answer.dart';
 import '../models/collection.dart';
 import '../services/api_client.dart';
 import '../services/local_database.dart';
@@ -61,6 +62,7 @@ class CollectionProvider extends ChangeNotifier {
     double? lat,
     double? lng,
     String? address,
+    List<CollectionAnswer> answers = const [],
   }) async {
     final c = Collection(
       id: _uuid.v4(),
@@ -75,6 +77,7 @@ class CollectionProvider extends ChangeNotifier {
       locationAddress: address,
       collectedAt: DateTime.now(),
       synced: false,
+      answers: answers,
     );
     await db.insert(c);
     await refreshStats();

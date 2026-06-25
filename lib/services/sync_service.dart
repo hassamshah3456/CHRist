@@ -52,6 +52,19 @@ class SyncService {
       // 1. Push unsynced local records.
       final pending = await db.pendingUnsynced();
       if (pending.isNotEmpty) {
+        // Upload any pending photos first so each answer carries a server
+        // filename. Persist as we go, so a later failure never re-uploads.
+        for (final c in pending) {
+          var changed = false;
+          for (final a in c.answers) {
+            if (a.photoLocalPath != null && a.photoFilename == null) {
+              a.photoFilename = await api.uploadPhoto(a.photoLocalPath!);
+              changed = true;
+            }
+          }
+          if (changed) await db.update(c);
+        }
+
         final res = await api.postJson('/collections/sync', {
           'collections': pending.map((c) => c.toApiJson()).toList(),
         });
