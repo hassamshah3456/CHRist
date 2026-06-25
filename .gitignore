@@ -27,3 +27,6 @@ backend/.env
 .DS_Store
 .idea/
 .vscode/
+
+# Claude Code local state
+.claude/

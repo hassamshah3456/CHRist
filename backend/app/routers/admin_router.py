@@ -106,6 +106,54 @@ def admin_stats(
     sex_counter = Counter((c.child_sex or "unknown") for c in cols)
     resp_counter = Counter((c.responder or "unknown") for c in cols)
 
+    # Age distribution by research-friendly bands (years; <1y uses months).
+    age_bands = OrderedDict([
+        ("< 1 yr", 0), ("1–4 yrs", 0), ("5–9 yrs", 0),
+        ("10–14 yrs", 0), ("15–18 yrs", 0), ("Unknown", 0),
+    ])
+    ages = []
+    for c in cols:
+        if c.child_age is None:
+            age_bands["Unknown"] += 1
+            continue
+        ages.append(c.child_age)
+        a = c.child_age
+        if a < 1:
+            age_bands["< 1 yr"] += 1
+        elif a <= 4:
+            age_bands["1–4 yrs"] += 1
+        elif a <= 9:
+            age_bands["5–9 yrs"] += 1
+        elif a <= 14:
+            age_bands["10–14 yrs"] += 1
+        else:
+            age_bands["15–18 yrs"] += 1
+    avg_age = round(sum(ages) / len(ages), 1) if ages else None
+
+    # Per-question Yes/No positivity across all answers (e.g. vaccine coverage).
+    yn = defaultdict(lambda: {"yes": 0, "no": 0, "label": ""})
+    yn_answers = db.query(models.Answer).filter(
+        models.Answer.value_bool.isnot(None)
+    ).all()
+    for a in yn_answers:
+        key = a.question_code or (a.question_id or "")
+        yn[key]["label"] = a.question_title or a.question_code or key
+        if a.value_bool:
+            yn[key]["yes"] += 1
+        else:
+            yn[key]["no"] += 1
+    question_stats = sorted(
+        (
+            schemas.QuestionStat(
+                code=k, label=v["label"], yes=v["yes"], no=v["no"],
+                total=v["yes"] + v["no"],
+            )
+            for k, v in yn.items()
+        ),
+        key=lambda q: q.total,
+        reverse=True,
+    )
+
     # Per-collector rollup.
     by_user_count = Counter(c.user_id for c in cols)
     last_by_user = {}
@@ -142,6 +190,7 @@ def admin_stats(
         consent_yes=consent_yes,
         consent_no=total - consent_yes,
         collectors_count=len(collectors),
+        avg_age=avg_age,
         daily=[schemas.DailyPoint(date=k, count=v) for k, v in daily.items()],
         sex_breakdown=[
             schemas.BreakdownItem(label=k, count=v)
@@ -151,6 +200,11 @@ def admin_stats(
             schemas.BreakdownItem(label=k, count=v)
             for k, v in resp_counter.items()
         ],
+        age_breakdown=[
+            schemas.BreakdownItem(label=k, count=v)
+            for k, v in age_bands.items() if v > 0
+        ],
+        question_stats=question_stats,
         collectors=collectors,
     )
 
@@ -178,7 +232,10 @@ def admin_collections(
             collector_name=c.collector_name,
             collector_email=u.email,
             verbal_consent=c.verbal_consent,
+            phone=c.phone,
+            child_name=c.child_name,
             child_age=c.child_age,
+            child_age_months=c.child_age_months,
             child_sex=c.child_sex,
             responder=c.responder,
             responder_other=c.responder_other,
@@ -240,7 +297,7 @@ def export_csv(
 
     base_cols = [
         "id", "collected_at", "collector_name", "collector_email",
-        "verbal_consent", "child_age", "child_sex", "responder",
+        "phone", "verbal_consent", "child_name", "child_age", "child_age_months", "child_sex", "responder",
         "responder_other", "location_lat", "location_lng", "location_address",
     ]
 
@@ -254,8 +311,11 @@ def export_csv(
             c.collected_at.isoformat() if c.collected_at else "",
             c.collector_name,
             u.email,
+            c.phone or "",
             "yes" if c.verbal_consent else "no",
+            c.child_name or "",
             c.child_age if c.child_age is not None else "",
+            c.child_age_months if c.child_age_months is not None else "",
             c.child_sex or "",
             c.responder or "",
             c.responder_other or "",

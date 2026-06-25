@@ -8,11 +8,10 @@ import '../../widgets/common.dart';
 import 'collect_child_screen.dart';
 import 'step_indicator.dart';
 
-/// Step 1 of a collection.
+/// Step 1 of a collection: contact phone + verbal consent.
 ///
-/// The collector's name is shown automatically. Their location/address is
-/// captured automatically in the background (not displayed on screen, per
-/// spec) and carried into step 2 to be saved with the record.
+/// The collector's name is shown automatically. Location/address is captured
+/// silently in the background (not displayed) and carried through the flow.
 class CollectConsentScreen extends StatefulWidget {
   const CollectConsentScreen({super.key});
 
@@ -21,6 +20,7 @@ class CollectConsentScreen extends StatefulWidget {
 }
 
 class _CollectConsentScreenState extends State<CollectConsentScreen> {
+  final _phone = TextEditingController();
   bool? _consent; // true = yes, false = no
   CapturedLocation _location = const CapturedLocation();
   bool _capturing = true;
@@ -41,15 +41,28 @@ class _CollectConsentScreenState extends State<CollectConsentScreen> {
     }
   }
 
+  @override
+  void dispose() {
+    _phone.dispose();
+    super.dispose();
+  }
+
   void _next() {
+    final phone = _phone.text.trim();
+    if (phone.length < 7) {
+      showSnack(context, 'Enter a valid phone number.', error: true);
+      return;
+    }
     if (_consent == null) {
       showSnack(context, 'Please select verbal consent.', error: true);
       return;
     }
+    FocusScope.of(context).unfocus();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CollectChildScreen(
           verbalConsent: _consent!,
+          phone: phone,
           location: _location,
         ),
       ),
@@ -71,61 +84,74 @@ class _CollectConsentScreenState extends State<CollectConsentScreen> {
             children: [
               const StepIndicator(step: 1),
               const SizedBox(height: 18),
-              SectionCard(
-                child: Row(
+              Expanded(
+                child: ListView(
                   children: [
-                    const CircleAvatar(
-                      radius: 22,
-                      backgroundColor: Color(0xFFE9EDFB),
-                      child: Icon(Icons.person_rounded,
-                          color: AppTheme.primary),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    SectionCard(
+                      child: Row(
                         children: [
-                          const Text('Collector',
-                              style: TextStyle(
-                                  color: AppTheme.textMuted, fontSize: 13)),
-                          Text(name,
-                              style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700)),
+                          const CircleAvatar(
+                            radius: 22,
+                            backgroundColor: Color(0xFFE9EDFB),
+                            child: Icon(Icons.person_rounded,
+                                color: AppTheme.primary),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Collector',
+                                    style: TextStyle(
+                                        color: AppTheme.textMuted,
+                                        fontSize: 13)),
+                                Text(name,
+                                    style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                          ),
+                          _LocationStatus(
+                              capturing: _capturing,
+                              hasFix: _location.hasFix),
                         ],
                       ),
                     ),
-                    // Location capture status (address itself is not shown).
-                    _LocationStatus(
-                        capturing: _capturing, hasFix: _location.hasFix),
+                    const SizedBox(height: 24),
+                    const Text('Phone number',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Children registered under the same number are grouped.',
+                      style: TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _phone,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        hintText: 'e.g. 98765 43210',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text('Verbal Consent',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 4),
+                    const Text('Did the responder give verbal consent?',
+                        style: TextStyle(color: AppTheme.textMuted)),
+                    const SizedBox(height: 12),
+                    YesNoButtons(
+                      value: _consent,
+                      onChanged: (v) => setState(() => _consent = v),
+                    ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              const Text(
-                'Verbal Consent',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'Did the responder give verbal consent?',
-                style: TextStyle(color: AppTheme.textMuted),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<bool>(
-                value: _consent,
-                isExpanded: true,
-                hint: const Text('Select Yes or No'),
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.verified_user_outlined),
-                ),
-                items: const [
-                  DropdownMenuItem(value: true, child: Text('Yes')),
-                  DropdownMenuItem(value: false, child: Text('No')),
-                ],
-                onChanged: (v) => setState(() => _consent = v),
-              ),
-              const Spacer(),
+              const SizedBox(height: 8),
               ElevatedButton.icon(
                 onPressed: _next,
                 icon: const Icon(Icons.arrow_forward_rounded),
@@ -159,4 +185,3 @@ class _LocationStatus extends StatelessWidget {
     );
   }
 }
-

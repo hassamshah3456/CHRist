@@ -9,19 +9,21 @@ import 'package:uuid/uuid.dart';
 
 import '../../models/answer.dart';
 import '../../models/question.dart';
-import '../../providers/auth_provider.dart';
-import '../../providers/collection_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/questionnaire_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import 'collect_records_screen.dart';
 import 'step_indicator.dart';
 
 /// Step 3: dynamic, admin-managed screening questions. Saves the collection.
 class CollectScreeningScreen extends StatefulWidget {
   final bool verbalConsent;
+  final String phone;
   final CapturedLocation location;
+  final String? childName;
   final int? childAge;
+  final int? childAgeMonths;
   final String? childSex;
   final String? responder;
   final String? responderOther;
@@ -29,8 +31,11 @@ class CollectScreeningScreen extends StatefulWidget {
   const CollectScreeningScreen({
     super.key,
     required this.verbalConsent,
+    required this.phone,
     required this.location,
+    required this.childName,
     required this.childAge,
+    required this.childAgeMonths,
     required this.childSex,
     required this.responder,
     required this.responderOther,
@@ -43,7 +48,6 @@ class CollectScreeningScreen extends StatefulWidget {
 class _CollectScreeningScreenState extends State<CollectScreeningScreen> {
   final _uuid = const Uuid();
   bool _loading = true;
-  bool _saving = false;
   List<Question> _questions = [];
 
   // Answer state keyed by question id.
@@ -208,76 +212,27 @@ class _CollectScreeningScreenState extends State<CollectScreeningScreen> {
     return out;
   }
 
-  Future<void> _save() async {
+  void _next() {
     final missing = _validate();
     if (missing != null) {
       showSnack(context, 'Please answer: $missing', error: true);
       return;
     }
     FocusScope.of(context).unfocus();
-    setState(() => _saving = true);
-
-    final auth = context.read<AuthProvider>();
-    final cp = context.read<CollectionProvider>();
-    try {
-      await cp.addCollection(
-        collectorName: auth.user?.name ?? 'Collector',
-        verbalConsent: widget.verbalConsent,
-        childAge: widget.childAge,
-        childSex: widget.childSex,
-        responder: widget.responder,
-        responderOther: widget.responderOther,
-        lat: widget.location.lat,
-        lng: widget.location.lng,
-        address: widget.location.address,
-        answers: _buildAnswers(),
-      );
-      if (!mounted) return;
-      await _showSuccess();
-    } catch (_) {
-      if (mounted) {
-        showSnack(context, 'Could not save. Please try again.', error: true);
-        setState(() => _saving = false);
-      }
-    }
-  }
-
-  Future<void> _showSuccess() async {
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: const BoxDecoration(
-                  color: Color(0xFFE7F7EC), shape: BoxShape.circle),
-              child: const Icon(Icons.check_rounded,
-                  color: AppTheme.success, size: 40),
-            ),
-            const SizedBox(height: 16),
-            const Text('Collection saved',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            const Text('It will sync automatically when online.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.textMuted)),
-          ],
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CollectRecordsScreen(
+          verbalConsent: widget.verbalConsent,
+          phone: widget.phone,
+          location: widget.location,
+          childName: widget.childName,
+          childAge: widget.childAge,
+          childAgeMonths: widget.childAgeMonths,
+          childSex: widget.childSex,
+          responder: widget.responder,
+          responderOther: widget.responderOther,
+          screeningAnswers: _buildAnswers(),
         ),
-        actions: [
-          Center(
-            child: TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).popUntil((r) => r.isFirst);
-              },
-              child: const Text('Done'),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -309,15 +264,9 @@ class _CollectScreeningScreenState extends State<CollectScreeningScreen> {
               ),
               const SizedBox(height: 8),
               ElevatedButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.4))
-                    : const Icon(Icons.save_rounded),
-                label: Text(_saving ? 'Saving…' : 'Save collection'),
+                onPressed: _next,
+                icon: const Icon(Icons.arrow_forward_rounded),
+                label: const Text('Next'),
               ),
             ],
           ),

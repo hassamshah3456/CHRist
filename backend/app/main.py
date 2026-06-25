@@ -5,6 +5,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import inspect, text
 
 from . import models, schemas
 from .auth import get_current_user
@@ -21,6 +22,37 @@ from .routers import (
 # Create tables on startup (fine for SQLite / small deployments; for Postgres
 # in production you'd typically use Alembic migrations instead).
 Base.metadata.create_all(bind=engine)
+
+
+def _ensure_columns():
+    """Idempotently add columns introduced after the table first existed.
+
+    create_all() never alters existing tables, so newly-added model columns
+    (e.g. child_name, child_age_months) would be missing on a database created
+    by an older build. This adds them in place — DB-agnostic and safe to run on
+    every startup.
+    """
+    wanted = {
+        "collections": {
+            "child_name": "VARCHAR(255)",
+            "child_age_months": "INTEGER",
+        },
+    }
+    inspector = inspect(engine)
+    for table, columns in wanted.items():
+        try:
+            existing = {c["name"] for c in inspector.get_columns(table)}
+        except Exception:
+            continue  # table not present yet; create_all handles fresh installs
+        for name, ddl in columns.items():
+            if name not in existing:
+                with engine.begin() as conn:
+                    conn.execute(
+                        text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+                    )
+
+
+_ensure_columns()
 
 # Ensure the media directory exists for uploaded photos.
 os.makedirs(settings.MEDIA_DIR, exist_ok=True)

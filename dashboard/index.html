@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=2" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
 
@@ -87,6 +87,19 @@
       </div>
     </section>
 
+    <section class="grid-2">
+      <div class="card">
+        <h3>Child age distribution</h3>
+        <canvas id="chart-age" height="120"></canvas>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <h3>Screening positivity <small>(Yes %)</small></h3>
+        </div>
+        <div id="positivity" class="positivity"></div>
+      </div>
+    </section>
+
     <!-- Map -->
     <section class="card">
       <div class="card-head">
@@ -114,7 +127,7 @@
           <table id="collections-table">
             <thead>
               <tr>
-                <th>When</th><th>Collector</th><th>Age</th><th>Sex</th>
+                <th>When</th><th>Collector</th><th>Phone</th><th>Child</th><th>Age</th><th>Sex</th>
                 <th>Responder</th><th>Consent</th><th>Location</th>
               </tr>
             </thead>
@@ -163,6 +176,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=2"></script>
+<script src="app.js?v=4"></script>
 </body>
 </html>

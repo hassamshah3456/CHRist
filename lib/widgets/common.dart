@@ -146,6 +146,80 @@ class LabeledDropdown<T> extends StatelessWidget {
   }
 }
 
+/// A two-button Yes / No selector (used on the consent and records screens).
+class YesNoButtons extends StatelessWidget {
+  final bool? value;
+  final ValueChanged<bool> onChanged;
+  const YesNoButtons({super.key, required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget btn(String label, bool val, Color color) {
+      final selected = value == val;
+      return Expanded(
+        child: InkWell(
+          onTap: () => onChanged(val),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? color.withOpacity(.12) : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected ? color : const Color(0xFFDADFEA),
+                width: selected ? 1.6 : 1,
+              ),
+            ),
+            child: Text(label,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? color : AppTheme.textDark,
+                )),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        btn('Yes', true, AppTheme.success),
+        const SizedBox(width: 10),
+        btn('No', false, AppTheme.danger),
+      ],
+    );
+  }
+}
+
+/// A row of single-select chips for short option lists.
+class OptionChips extends StatelessWidget {
+  final List<String> options;
+  final String? value;
+  final ValueChanged<String> onChanged;
+  const OptionChips({
+    super.key,
+    required this.options,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: options
+          .map((o) => ChoiceChip(
+                label: Text(o),
+                selected: value == o,
+                onSelected: (_) => onChanged(o),
+              ))
+          .toList(),
+    );
+  }
+}
+
 void showSnack(BuildContext context, String message, {bool error = false}) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()

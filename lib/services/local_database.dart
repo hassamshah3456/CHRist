@@ -21,14 +21,17 @@ class LocalDatabase {
     final path = p.join(dir, 'usmlewise_christ.db');
     return openDatabase(
       path,
-      version: 2,
+      version: 5,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE collections (
             id TEXT PRIMARY KEY,
             collector_name TEXT,
             verbal_consent INTEGER,
+            phone TEXT,
+            child_name TEXT,
             child_age INTEGER,
+            child_age_months INTEGER,
             child_sex TEXT,
             responder TEXT,
             responder_other TEXT,
@@ -44,6 +47,16 @@ class LocalDatabase {
       onUpgrade: (db, oldV, newV) async {
         if (oldV < 2) {
           await db.execute('ALTER TABLE collections ADD COLUMN answers_json TEXT');
+        }
+        if (oldV < 3) {
+          await db.execute('ALTER TABLE collections ADD COLUMN phone TEXT');
+        }
+        if (oldV < 4) {
+          await db.execute(
+              'ALTER TABLE collections ADD COLUMN child_age_months INTEGER');
+        }
+        if (oldV < 5) {
+          await db.execute('ALTER TABLE collections ADD COLUMN child_name TEXT');
         }
       },
     );

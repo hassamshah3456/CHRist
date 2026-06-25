@@ -63,9 +63,13 @@ class Collection(Base):
 
     # Step 1 — consent
     verbal_consent = Column(Boolean, nullable=False, default=False)
+    # Contact phone (used to group siblings registered under one number).
+    phone = Column(String(32), nullable=True, index=True)
 
     # Step 2 — about the child
-    child_age = Column(Integer, nullable=True)
+    child_name = Column(String(255), nullable=True)
+    child_age = Column(Integer, nullable=True)           # years
+    child_age_months = Column(Integer, nullable=True)    # 0–11, in addition to years
     child_sex = Column(String(20), nullable=True)        # male / female / other
     responder = Column(String(20), nullable=True)        # father / mother / other
     responder_other = Column(String(255), nullable=True)  # free text when "other"

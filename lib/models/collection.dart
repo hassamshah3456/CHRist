@@ -10,7 +10,10 @@ class Collection {
   final String id; // client-generated UUID
   final String collectorName;
   final bool verbalConsent;
+  final String? phone;
+  final String? childName;
   final int? childAge;
+  final int? childAgeMonths; // 0–11, additional to childAge years
   final String? childSex; // male / female / other
   final String? responder; // father / mother / other
   final String? responderOther; // free text when responder == other
@@ -25,7 +28,10 @@ class Collection {
     required this.id,
     required this.collectorName,
     required this.verbalConsent,
+    this.phone,
+    this.childName,
     this.childAge,
+    this.childAgeMonths,
     this.childSex,
     this.responder,
     this.responderOther,
@@ -41,7 +47,10 @@ class Collection {
         id: id,
         collectorName: collectorName,
         verbalConsent: verbalConsent,
+        phone: phone,
+        childName: childName,
         childAge: childAge,
+        childAgeMonths: childAgeMonths,
         childSex: childSex,
         responder: responder,
         responderOther: responderOther,
@@ -57,7 +66,10 @@ class Collection {
   Map<String, dynamic> toApiJson() => {
         'id': id,
         'verbal_consent': verbalConsent,
+        'phone': phone,
+        'child_name': childName,
         'child_age': childAge,
+        'child_age_months': childAgeMonths,
         'child_sex': childSex,
         'responder': responder,
         'responder_other': responderOther,
@@ -73,7 +85,10 @@ class Collection {
         'id': id,
         'collector_name': collectorName,
         'verbal_consent': verbalConsent ? 1 : 0,
+        'phone': phone,
+        'child_name': childName,
         'child_age': childAge,
+        'child_age_months': childAgeMonths,
         'child_sex': childSex,
         'responder': responder,
         'responder_other': responderOther,
@@ -89,7 +104,10 @@ class Collection {
         id: m['id'] as String,
         collectorName: m['collector_name'] as String? ?? '',
         verbalConsent: (m['verbal_consent'] as int? ?? 0) == 1,
+        phone: m['phone'] as String?,
+        childName: m['child_name'] as String?,
         childAge: m['child_age'] as int?,
+        childAgeMonths: m['child_age_months'] as int?,
         childSex: m['child_sex'] as String?,
         responder: m['responder'] as String?,
         responderOther: m['responder_other'] as String?,
@@ -118,7 +136,10 @@ class Collection {
         id: j['id'] as String,
         collectorName: j['collector_name'] as String? ?? '',
         verbalConsent: j['verbal_consent'] as bool? ?? false,
+        phone: j['phone'] as String?,
+        childName: j['child_name'] as String?,
         childAge: j['child_age'] as int?,
+        childAgeMonths: j['child_age_months'] as int?,
         childSex: j['child_sex'] as String?,
         responder: j['responder'] as String?,
         responderOther: j['responder_other'] as String?,

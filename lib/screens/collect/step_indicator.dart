@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-/// Progress indicator for the 3-step collection flow.
+/// Progress indicator for the 4-step collection flow.
 class StepIndicator extends StatelessWidget {
-  final int step; // 1..3
+  final int step; // 1..4
   const StepIndicator({super.key, required this.step});
 
   @override
@@ -36,10 +36,12 @@ class StepIndicator extends StatelessWidget {
     return Row(
       children: [
         dot(1, 'Consent'),
-        const SizedBox(width: 8),
-        dot(2, 'About child'),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
+        dot(2, 'Child'),
+        const SizedBox(width: 6),
         dot(3, 'Screening'),
+        const SizedBox(width: 6),
+        dot(4, 'Records'),
       ],
     );
   }

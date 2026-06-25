@@ -101,7 +101,8 @@ small { color: var(--muted); font-weight: 400; }
 
 /* ---------- KPIs ---------- */
 .kpi-grid {
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 18px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px; margin-bottom: 18px;
 }
 @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
 .kpi {
@@ -146,6 +147,19 @@ tbody tr:hover { background: #f7f9fe; }
 .badge-no { background: #fdeceb; color: var(--danger); }
 .empty { text-align: center; color: var(--muted); padding: 30px; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; }
+
+/* ---------- Screening positivity bars ---------- */
+.positivity { display: flex; flex-direction: column; gap: 14px; margin-top: 6px;
+  max-height: 280px; overflow-y: auto; }
+.pos-row { display: flex; flex-direction: column; gap: 6px; }
+.pos-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.pos-label { font-size: 13.5px; color: var(--text); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.pos-val { font-size: 13px; font-weight: 700; color: var(--primary); white-space: nowrap; }
+.pos-val small { color: var(--muted); font-weight: 500; }
+.pos-track { height: 8px; background: #eef1f8; border-radius: 6px; overflow: hidden; }
+.pos-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent));
+  border-radius: 6px; transition: width .4s ease; }
 
 /* ---------- Nav ---------- */
 .nav { display: flex; gap: 4px; margin-left: 8px; }
@@ -211,6 +225,15 @@ tbody tr:hover { background: #f7f9fe; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .modal-actions .cancel { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; cursor: pointer; font-weight: 600; }
 tbody tr.clickable { cursor: pointer; }
+tr.group-head td {
+  background: #eef3ff; font-weight: 700; color: var(--primary);
+  border-bottom: none; padding: 9px 12px;
+}
+.group-count {
+  background: var(--primary); color: #fff; font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 20px; margin-left: 8px;
+}
+tr.grouped td:first-child { border-left: 3px solid var(--primary); }
 
 /* answers in detail modal */
 .ans-row { padding: 10px 0; border-bottom: 1px solid var(--border); }

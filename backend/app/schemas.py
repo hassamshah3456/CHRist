@@ -108,7 +108,10 @@ class CollectionIn(BaseModel):
     """One collection coming up from the device (offline-capable)."""
     id: Optional[str] = None  # client UUID; server keeps it for idempotency
     verbal_consent: bool = False
+    phone: Optional[str] = None
+    child_name: Optional[str] = None
     child_age: Optional[int] = None
+    child_age_months: Optional[int] = None
     child_sex: Optional[str] = None
     responder: Optional[str] = None
     responder_other: Optional[str] = None
@@ -123,7 +126,9 @@ class CollectionOut(BaseModel):
     id: str
     collector_name: str
     verbal_consent: bool
+    child_name: Optional[str] = None
     child_age: Optional[int] = None
+    child_age_months: Optional[int] = None
     child_sex: Optional[str] = None
     responder: Optional[str] = None
     responder_other: Optional[str] = None
@@ -166,6 +171,16 @@ class BreakdownItem(BaseModel):
     count: int
 
 
+class QuestionStat(BaseModel):
+    """Aggregated Yes/No positivity for one screening question (e.g. vaccine
+    coverage) across all collected answers."""
+    code: str
+    label: str
+    yes: int
+    no: int
+    total: int
+
+
 class CollectorSummary(BaseModel):
     id: str
     name: str
@@ -187,9 +202,12 @@ class AdminStats(BaseModel):
     consent_yes: int
     consent_no: int
     collectors_count: int
+    avg_age: Optional[float] = None       # mean child age in years
     daily: List[DailyPoint]               # last 30 days
     sex_breakdown: List[BreakdownItem]
     responder_breakdown: List[BreakdownItem]
+    age_breakdown: List[BreakdownItem] = []        # by age band
+    question_stats: List[QuestionStat] = []        # Yes/No positivity per question
     collectors: List[CollectorSummary]
 
 
@@ -199,7 +217,10 @@ class AdminCollectionOut(BaseModel):
     collector_name: str
     collector_email: Optional[str] = None
     verbal_consent: bool
+    phone: Optional[str] = None
+    child_name: Optional[str] = None
     child_age: Optional[int] = None
+    child_age_months: Optional[int] = None
     child_sex: Optional[str] = None
     responder: Optional[str] = None
     responder_other: Optional[str] = None

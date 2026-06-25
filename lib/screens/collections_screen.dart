@@ -178,7 +178,8 @@ class _CollectionTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Child • ${c.childAge ?? '—'} yrs • '
+                  '${c.childName?.isNotEmpty == true ? c.childName : 'Child'} • '
+                  '${_formatAge(c.childAge, c.childAgeMonths)} • '
                   '${_cap(c.childSex ?? '—')}',
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
@@ -217,6 +218,14 @@ class _CollectionTile extends StatelessWidget {
 
   String _cap(String s) =>
       s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1)}';
+
+  String _formatAge(int? years, int? months) {
+    if (years == null && months == null) return '—';
+    final parts = <String>[];
+    if (years != null) parts.add('$years yrs');
+    if (months != null && months > 0) parts.add('$months mo');
+    return parts.isEmpty ? '—' : parts.join(' ');
+  }
 }
 
 class _EmptyState extends StatelessWidget {

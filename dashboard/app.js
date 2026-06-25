@@ -46,6 +46,12 @@ function fmtDate(iso) {
     ", " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : "—"; }
+function fmtAge(years, months) {
+  const parts = [];
+  if (years != null) parts.push(`${years}y`);
+  if (months != null && months > 0) parts.push(`${months}m`);
+  return parts.length ? parts.join(" ") : "—";
+}
 
 /* ---------- auth ---------- */
 async function login(email, password) {
@@ -100,6 +106,8 @@ async function loadStats() {
   renderConsent(s.consent_yes, s.consent_no);
   renderBreakdown("chart-sex", s.sex_breakdown, ["#1e4db7", "#00b8a9", "#7a5af8", "#e2574c"]);
   renderBreakdown("chart-responder", s.responder_breakdown, ["#1e4db7", "#00b8a9", "#f0a500", "#7a5af8", "#e2574c"]);
+  renderAgeBars(s.age_breakdown || []);
+  renderPositivity(s.question_stats || []);
 }
 
 async function loadCollections() {
@@ -117,12 +125,18 @@ async function loadCollectors() {
 
 /* ---------- renderers ---------- */
 function renderKpis(s) {
+  const consentTotal = (s.consent_yes || 0) + (s.consent_no || 0);
+  const consentRate = consentTotal
+    ? Math.round((s.consent_yes / consentTotal) * 100) + "%"
+    : "—";
   const items = [
     { label: "Total", value: s.total, color: "#2ba84a" },
     { label: "Today", value: s.today, color: "#1e4db7" },
     { label: "This week", value: s.this_week, color: "#00b8a9" },
     { label: "This month", value: s.this_month, color: "#7a5af8" },
     { label: "Collectors", value: s.collectors_count, color: "#f0a500" },
+    { label: "Avg age", value: s.avg_age != null ? s.avg_age + " yrs" : "—", color: "#e2574c" },
+    { label: "Consent rate", value: consentRate, color: "#2ba84a" },
   ];
   $("#kpi-grid").innerHTML = items.map((i) => `
     <div class="kpi">
@@ -178,6 +192,62 @@ function renderBreakdown(id, items, colors) {
   });
 }
 
+function renderAgeBars(items) {
+  makeOrReplace("chart-age", {
+    type: "bar",
+    data: {
+      labels: items.map((i) => i.label),
+      datasets: [{
+        data: items.map((i) => i.count),
+        backgroundColor: "#1e4db7",
+        borderRadius: 6,
+        maxBarThickness: 46,
+      }],
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function renderPositivity(stats) {
+  const wrap = $("#positivity");
+  if (!stats.length) {
+    wrap.innerHTML = `<div class="empty">No Yes/No answers collected yet.</div>`;
+    return;
+  }
+  wrap.innerHTML = stats.map((q) => {
+    const pct = q.total ? Math.round((q.yes / q.total) * 100) : 0;
+    return `
+      <div class="pos-row">
+        <div class="pos-head">
+          <span class="pos-label" title="${escapeHtml(q.label)}">${escapeHtml(q.label)}</span>
+          <span class="pos-val">${pct}% <small>(${q.yes}/${q.total})</small></span>
+        </div>
+        <div class="pos-track"><div class="pos-fill" style="width:${pct}%"></div></div>
+      </div>`;
+  }).join("");
+}
+
+function _rowHtml(r, grouped) {
+  const responder = r.responder === "other"
+    ? (r.responder_other || "Other") : cap(r.responder);
+  const loc = r.location_address
+    || (r.location_lat != null ? `${r.location_lat.toFixed(4)}, ${r.location_lng.toFixed(4)}` : "—");
+  return `<tr class="clickable ${grouped ? "grouped" : ""}" data-id="${r.id}">
+    <td>${fmtDate(r.collected_at)}</td>
+    <td>${escapeHtml(r.collector_name || "—")}</td>
+    <td>${escapeHtml(r.phone || "—")}</td>
+    <td>${escapeHtml(r.child_name || "—")}</td>
+    <td>${fmtAge(r.child_age, r.child_age_months)}</td>
+    <td>${cap(r.child_sex)}</td>
+    <td>${escapeHtml(responder)}</td>
+    <td><span class="badge ${r.verbal_consent ? "badge-yes" : "badge-no"}">${r.verbal_consent ? "Yes" : "No"}</span></td>
+    <td>${escapeHtml(loc)}</td>
+  </tr>`;
+}
+
 function renderCollections(rows) {
   const q = ($("#search").value || "").toLowerCase();
   const filtered = q
@@ -185,24 +255,30 @@ function renderCollections(rows) {
     : rows;
   const tbody = $("#collections-table tbody");
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">No submissions found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">No submissions found.</td></tr>`;
     return;
   }
-  tbody.innerHTML = filtered.map((r) => {
-    const responder = r.responder === "other"
-      ? (r.responder_other || "Other") : cap(r.responder);
-    const loc = r.location_address
-      || (r.location_lat != null ? `${r.location_lat.toFixed(4)}, ${r.location_lng.toFixed(4)}` : "—");
-    return `<tr class="clickable" data-id="${r.id}">
-      <td>${fmtDate(r.collected_at)}</td>
-      <td>${r.collector_name || "—"}</td>
-      <td>${r.child_age ?? "—"}</td>
-      <td>${cap(r.child_sex)}</td>
-      <td>${responder}</td>
-      <td><span class="badge ${r.verbal_consent ? "badge-yes" : "badge-no"}">${r.verbal_consent ? "Yes" : "No"}</span></td>
-      <td>${loc}</td>
-    </tr>`;
-  }).join("");
+
+  // Group children sharing the same phone number (siblings).
+  const counts = {};
+  filtered.forEach((r) => {
+    if (r.phone) counts[r.phone] = (counts[r.phone] || 0) + 1;
+  });
+  const groups = {};
+  const singles = [];
+  filtered.forEach((r) => {
+    if (r.phone && counts[r.phone] > 1) (groups[r.phone] ||= []).push(r);
+    else singles.push(r);
+  });
+
+  let html = "";
+  Object.entries(groups).forEach(([phone, list]) => {
+    html += `<tr class="group-head"><td colspan="9">📞 ${escapeHtml(phone)}
+      <span class="group-count">${list.length} children</span></td></tr>`;
+    list.forEach((r) => { html += _rowHtml(r, true); });
+  });
+  singles.forEach((r) => { html += _rowHtml(r, false); });
+  tbody.innerHTML = html;
 }
 
 function renderCollectors(rows) {
@@ -249,8 +325,8 @@ function renderMapCollections(rows) {
   rows.forEach((r) => {
     if (r.location_lat == null || r.location_lng == null) return;
     const m = L.marker([r.location_lat, r.location_lng], { icon: blueIcon("#1e4db7") })
-      .bindPopup(`<b>${r.collector_name || "Collector"}</b><br>
-        Age ${r.child_age ?? "—"} · ${cap(r.child_sex)}<br>
+      .bindPopup(`<b>${escapeHtml(r.child_name || r.collector_name || "Child")}</b><br>
+        Age ${fmtAge(r.child_age, r.child_age_months)} · ${cap(r.child_sex)}<br>
         Consent: ${r.verbal_consent ? "Yes" : "No"}<br>
         <small>${fmtDate(r.collected_at)}</small>`);
     m.addTo(markersLayer); collectionMarkers.push(m);
@@ -489,8 +565,9 @@ function openSubmission(id) {
   const responder = r.responder === "other" ? (r.responder_other || "Other") : cap(r.responder);
   let html = `<h3>Submission detail</h3>
     <div class="ans-row"><div class="ans-q">Collector</div><div class="ans-v">${escapeHtml(r.collector_name || "—")}</div></div>
+    <div class="ans-row"><div class="ans-q">Phone</div><div class="ans-v">${escapeHtml(r.phone || "—")}</div></div>
     <div class="ans-row"><div class="ans-q">When</div><div class="ans-v">${fmtDate(r.collected_at)}</div></div>
-    <div class="ans-row"><div class="ans-q">Child</div><div class="ans-v">Age ${r.child_age ?? "—"} · ${cap(r.child_sex)} · Responder: ${escapeHtml(responder)}</div></div>
+    <div class="ans-row"><div class="ans-q">Child</div><div class="ans-v">${escapeHtml(r.child_name || "—")} · Age ${fmtAge(r.child_age, r.child_age_months)} · ${cap(r.child_sex)} · Responder: ${escapeHtml(responder)}</div></div>
     <div class="ans-row"><div class="ans-q">Verbal consent</div><div class="ans-v"><span class="${r.verbal_consent ? "yes" : "no"}">${r.verbal_consent ? "Yes" : "No"}</span></div></div>
     <div class="ans-row"><div class="ans-q">Location</div><div class="ans-v">${escapeHtml(r.location_address || (r.location_lat != null ? r.location_lat.toFixed(5) + ", " + r.location_lng.toFixed(5) : "—"))}</div></div>`;
 
