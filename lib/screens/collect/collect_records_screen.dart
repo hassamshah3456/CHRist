@@ -25,6 +25,9 @@ class CollectRecordsScreen extends StatefulWidget {
   final String? childSex;
   final String? responder;
   final String? responderOther;
+  final bool? medicalRecord;
+  final String? vaccines; // CSV of opv,ipv,none
+  final String? medicalRecordPhotoPath; // local file path
   final List<CollectionAnswer> screeningAnswers;
 
   const CollectRecordsScreen({
@@ -38,6 +41,9 @@ class CollectRecordsScreen extends StatefulWidget {
     required this.childSex,
     required this.responder,
     required this.responderOther,
+    required this.medicalRecord,
+    required this.vaccines,
+    required this.medicalRecordPhotoPath,
     required this.screeningAnswers,
   });
 
@@ -66,6 +72,15 @@ class _CollectRecordsScreenState extends State<CollectRecordsScreen> {
     return _cap(widget.responder);
   }
 
+  String get _vaccineText {
+    final raw = widget.vaccines;
+    if (raw == null || raw.isEmpty) return '—';
+    return raw
+        .split(',')
+        .map((v) => v == 'none' ? 'None' : v.toUpperCase())
+        .join(', ');
+  }
+
   Future<void> _submit() async {
     setState(() => _saving = true);
     final auth = context.read<AuthProvider>();
@@ -80,6 +95,9 @@ class _CollectRecordsScreenState extends State<CollectRecordsScreen> {
             childSex: widget.childSex,
             responder: widget.responder,
             responderOther: widget.responderOther,
+            medicalRecord: widget.medicalRecord,
+            vaccines: widget.vaccines,
+            medicalRecordPhotoLocalPath: widget.medicalRecordPhotoPath,
             lat: widget.location.lat,
             lng: widget.location.lng,
             address: widget.location.address,
@@ -105,7 +123,7 @@ class _CollectRecordsScreenState extends State<CollectRecordsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const StepIndicator(step: 4),
+              const StepIndicator(step: 5),
               const SizedBox(height: 20),
               Expanded(
                 child: ListView(
@@ -121,6 +139,32 @@ class _CollectRecordsScreenState extends State<CollectRecordsScreen> {
                           _Row('Age', _ageText),
                           _Row('Sex', _cap(widget.childSex)),
                           _Row('Responder', _responderText),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SectionCard(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const _CardTitle('Medical'),
+                          _Row('Medical record',
+                              widget.medicalRecord == null
+                                  ? '—'
+                                  : (widget.medicalRecord! ? 'Yes' : 'No')),
+                          _Row('Vaccines', _vaccineText),
+                          if (widget.medicalRecord == true &&
+                              widget.medicalRecordPhotoPath != null) ...[
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.file(
+                                  File(widget.medicalRecordPhotoPath!),
+                                  height: 130,
+                                  width: double.infinity,
+                                  fit: BoxFit.cover),
+                            ),
+                          ],
                         ],
                       ),
                     ),

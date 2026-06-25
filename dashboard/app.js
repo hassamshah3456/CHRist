@@ -387,11 +387,87 @@ function switchView(view) {
     b.classList.toggle("active", b.dataset.view === view));
   $("#view-dashboard").classList.toggle("hidden", view !== "dashboard");
   $("#view-questionnaire").classList.toggle("hidden", view !== "questionnaire");
+  $("#view-payments").classList.toggle("hidden", view !== "payments");
   if (view === "questionnaire") loadQuestions();
+  else if (view === "payments") loadPayments();
   else setTimeout(() => map && map.invalidateSize(), 100);
 }
 document.querySelectorAll(".nav-btn").forEach((b) =>
   b.addEventListener("click", () => switchView(b.dataset.view)));
+
+/* ---------- payments ---------- */
+let payCurrency = "₹";
+function fmtMoney(v) {
+  const n = Number(v) || 0;
+  return payCurrency + (n % 1 === 0 ? n : n.toFixed(2));
+}
+
+async function loadPayments() {
+  try {
+    const data = await api("/api/payments");
+    payCurrency = (data.config && data.config.currency) || "₹";
+    $("#rate-per-entry").value = data.config ? data.config.per_entry : 0;
+    $("#rate-training").value = data.config ? data.config.training : 0;
+    renderPayments(data.collectors || []);
+  } catch (e) { alert(e.message); }
+}
+
+function renderPayments(rows) {
+  const tbody = $("#payments-table tbody");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No collectors yet.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r) => {
+    const last = r.last_payout
+      ? `${fmtMoney(r.last_payout.amount)} · ${fmtDate(r.last_payout.created_at)}`
+      : "—";
+    const training = r.training_paid
+      ? `<span class="badge badge-yes">Paid</span>`
+      : `<span class="badge badge-no">Due</span>`;
+    return `<tr>
+      <td>${escapeHtml(r.name)}</td>
+      <td>${escapeHtml(r.upi_address || "—")}</td>
+      <td>${r.total_entries}</td>
+      <td>${r.unpaid_entries}</td>
+      <td>${training}</td>
+      <td><b>${fmtMoney(r.due)}</b></td>
+      <td>${last}</td>
+      <td><button class="btn-primary pay-btn" data-pay="${r.id}"
+            data-name="${escapeHtml(r.name)}" data-due="${fmtMoney(r.due)}"
+            ${r.due > 0 ? "" : "disabled"}>Mark paid</button></td>
+    </tr>`;
+  }).join("");
+  tbody.querySelectorAll("[data-pay]").forEach((b) =>
+    b.addEventListener("click", () =>
+      markPaid(b.dataset.pay, b.dataset.name, b.dataset.due)));
+}
+
+async function saveRates() {
+  const per_entry = parseFloat($("#rate-per-entry").value) || 0;
+  const training = parseFloat($("#rate-training").value) || 0;
+  try {
+    await api("/api/payment-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ per_entry, training }),
+    });
+    $("#rates-saved").textContent = "Saved ✓";
+    setTimeout(() => { $("#rates-saved").textContent = ""; }, 2000);
+    loadPayments();
+  } catch (e) { alert(e.message); }
+}
+
+async function markPaid(id, name, due) {
+  if (!confirm(`Mark ${name} as paid ${due}?\nThis resets their counter; they'll see it in the app.`)) return;
+  try {
+    await api(`/api/collectors/${id}/pay`, { method: "POST" });
+    loadPayments();
+  } catch (e) { alert(e.message); }
+}
+
+const _saveRatesBtn = $("#save-rates-btn");
+if (_saveRatesBtn) _saveRatesBtn.addEventListener("click", saveRates);
 
 /* ---------- questionnaire management ---------- */
 const QTYPES = [
@@ -569,6 +645,7 @@ function openSubmission(id) {
     <div class="ans-row"><div class="ans-q">When</div><div class="ans-v">${fmtDate(r.collected_at)}</div></div>
     <div class="ans-row"><div class="ans-q">Child</div><div class="ans-v">${escapeHtml(r.child_name || "—")} · Age ${fmtAge(r.child_age, r.child_age_months)} · ${cap(r.child_sex)} · Responder: ${escapeHtml(responder)}</div></div>
     <div class="ans-row"><div class="ans-q">Verbal consent</div><div class="ans-v"><span class="${r.verbal_consent ? "yes" : "no"}">${r.verbal_consent ? "Yes" : "No"}</span></div></div>
+    <div class="ans-row"><div class="ans-q">Medical record</div><div class="ans-v">${r.medical_record == null ? "—" : `<span class="${r.medical_record ? "yes" : "no"}">${r.medical_record ? "Yes" : "No"}</span>`} · Vaccines: ${fmtVaccines(r.vaccines)}${r.medical_record_photo ? `<br><img class="ans-photo" id="medph" alt="medical record loading…"/>` : ""}</div></div>
     <div class="ans-row"><div class="ans-q">Location</div><div class="ans-v">${escapeHtml(r.location_address || (r.location_lat != null ? r.location_lat.toFixed(5) + ", " + r.location_lng.toFixed(5) : "—"))}</div></div>`;
 
   const answers = r.answers || [];
@@ -592,6 +669,12 @@ function openSubmission(id) {
   openModal(html);
   $("#sub-close").addEventListener("click", closeModal);
   answers.forEach((a, i) => { if (a.photo_filename) loadPhoto(a.photo_filename, $("#ph-" + i)); });
+  if (r.medical_record_photo) loadPhoto(r.medical_record_photo, $("#medph"));
+}
+
+function fmtVaccines(csv) {
+  if (!csv) return "—";
+  return csv.split(",").map((v) => v === "none" ? "None" : v.toUpperCase()).join(", ");
 }
 
 $("#collections-table").addEventListener("click", (e) => {

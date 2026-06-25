@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
-from .. import models, schemas
+from .. import models, payments, schemas
 from ..auth import get_current_admin
 from ..config import settings
 from ..database import get_db
@@ -239,6 +239,9 @@ def admin_collections(
             child_sex=c.child_sex,
             responder=c.responder,
             responder_other=c.responder_other,
+            medical_record=c.medical_record,
+            medical_record_photo=c.medical_record_photo,
+            vaccines=c.vaccines,
             location_lat=c.location_lat,
             location_lng=c.location_lng,
             location_address=c.location_address,
@@ -298,7 +301,8 @@ def export_csv(
     base_cols = [
         "id", "collected_at", "collector_name", "collector_email",
         "phone", "verbal_consent", "child_name", "child_age", "child_age_months", "child_sex", "responder",
-        "responder_other", "location_lat", "location_lng", "location_address",
+        "responder_other", "medical_record", "vaccines",
+        "location_lat", "location_lng", "location_address",
     ]
 
     buf = io.StringIO()
@@ -319,6 +323,8 @@ def export_csv(
             c.child_sex or "",
             c.responder or "",
             c.responder_other or "",
+            "yes" if c.medical_record else ("no" if c.medical_record is not None else ""),
+            c.vaccines or "",
             c.location_lat if c.location_lat is not None else "",
             c.location_lng if c.location_lng is not None else "",
             c.location_address or "",
@@ -349,3 +355,61 @@ def get_photo(
     if not os.path.isfile(path):
         raise HTTPException(404, "Photo not found.")
     return FileResponse(path)
+
+
+# ---------- Payments ----------
+def _payment_config_schema(cfg: dict) -> schemas.PaymentConfig:
+    return schemas.PaymentConfig(
+        per_entry=cfg["per_entry"], training=cfg["training"], currency=cfg["currency"]
+    )
+
+
+@router.get("/payments", response_model=schemas.PaymentsOverview)
+def payments_overview(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Per-collector payout status plus the current rates."""
+    cfg = payments.get_config(db)
+    users = [u for u in db.query(models.User).all() if not u.is_admin]
+    rows = []
+    for u in users:
+        due = payments.collector_due(db, u, cfg)
+        last = payments.last_payout(db, u.id)
+        rows.append(schemas.CollectorPayment(
+            id=u.id, name=u.name, email=u.email,
+            upi_address=u.upi_address, upi_name=u.upi_name,
+            total_entries=due["total_entries"],
+            unpaid_entries=due["unpaid_entries"],
+            per_entry=cfg["per_entry"], training=cfg["training"],
+            training_paid=due["training_paid"], due=due["due"],
+            currency=cfg["currency"], last_payout=last,
+        ))
+    rows.sort(key=lambda r: r.due, reverse=True)
+    return schemas.PaymentsOverview(config=_payment_config_schema(cfg), collectors=rows)
+
+
+@router.put("/payment-config", response_model=schemas.PaymentConfig)
+def update_payment_config(
+    body: schemas.PaymentConfig,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    payments.set_config(db, body.per_entry, body.training)
+    return _payment_config_schema(payments.get_config(db))
+
+
+@router.post("/collectors/{user_id}/pay", response_model=schemas.PayoutOut)
+def mark_collector_paid(
+    user_id: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Settle a collector: mark their unpaid entries paid, record the payout,
+    and reset their due counter to zero."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if user is None or user.is_admin:
+        raise HTTPException(404, "Collector not found.")
+    cfg = payments.get_config(db)
+    payout = payments.mark_paid(db, user, cfg)
+    return payout

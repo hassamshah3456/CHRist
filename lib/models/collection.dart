@@ -17,6 +17,12 @@ class Collection {
   final String? childSex; // male / female / other
   final String? responder; // father / mother / other
   final String? responderOther; // free text when responder == other
+  final bool? medicalRecord; // step 4: has a medical record
+  final String? vaccines; // CSV of opv,ipv (or 'none')
+  // Photo of the medical record. Local path is device-only; the filename is
+  // filled in by the sync service after upload (hence mutable).
+  String? medicalRecordPhotoLocalPath;
+  String? medicalRecordPhotoFilename;
   final double? locationLat;
   final double? locationLng;
   final String? locationAddress;
@@ -24,7 +30,7 @@ class Collection {
   final bool synced;
   final List<CollectionAnswer> answers;
 
-  const Collection({
+  Collection({
     required this.id,
     required this.collectorName,
     required this.verbalConsent,
@@ -35,6 +41,10 @@ class Collection {
     this.childSex,
     this.responder,
     this.responderOther,
+    this.medicalRecord,
+    this.vaccines,
+    this.medicalRecordPhotoLocalPath,
+    this.medicalRecordPhotoFilename,
     this.locationLat,
     this.locationLng,
     this.locationAddress,
@@ -54,6 +64,10 @@ class Collection {
         childSex: childSex,
         responder: responder,
         responderOther: responderOther,
+        medicalRecord: medicalRecord,
+        vaccines: vaccines,
+        medicalRecordPhotoLocalPath: medicalRecordPhotoLocalPath,
+        medicalRecordPhotoFilename: medicalRecordPhotoFilename,
         locationLat: locationLat,
         locationLng: locationLng,
         locationAddress: locationAddress,
@@ -73,6 +87,9 @@ class Collection {
         'child_sex': childSex,
         'responder': responder,
         'responder_other': responderOther,
+        'medical_record': medicalRecord,
+        'vaccines': vaccines,
+        'medical_record_photo': medicalRecordPhotoFilename,
         'location_lat': locationLat,
         'location_lng': locationLng,
         'location_address': locationAddress,
@@ -92,6 +109,10 @@ class Collection {
         'child_sex': childSex,
         'responder': responder,
         'responder_other': responderOther,
+        'medical_record': medicalRecord == null ? null : (medicalRecord! ? 1 : 0),
+        'vaccines': vaccines,
+        'medical_record_photo_local': medicalRecordPhotoLocalPath,
+        'medical_record_photo': medicalRecordPhotoFilename,
         'location_lat': locationLat,
         'location_lng': locationLng,
         'location_address': locationAddress,
@@ -111,6 +132,12 @@ class Collection {
         childSex: m['child_sex'] as String?,
         responder: m['responder'] as String?,
         responderOther: m['responder_other'] as String?,
+        medicalRecord: m['medical_record'] == null
+            ? null
+            : (m['medical_record'] as int) == 1,
+        vaccines: m['vaccines'] as String?,
+        medicalRecordPhotoLocalPath: m['medical_record_photo_local'] as String?,
+        medicalRecordPhotoFilename: m['medical_record_photo'] as String?,
         locationLat: (m['location_lat'] as num?)?.toDouble(),
         locationLng: (m['location_lng'] as num?)?.toDouble(),
         locationAddress: m['location_address'] as String?,
@@ -143,6 +170,9 @@ class Collection {
         childSex: j['child_sex'] as String?,
         responder: j['responder'] as String?,
         responderOther: j['responder_other'] as String?,
+        medicalRecord: j['medical_record'] as bool?,
+        vaccines: j['vaccines'] as String?,
+        medicalRecordPhotoFilename: j['medical_record_photo'] as String?,
         locationLat: (j['location_lat'] as num?)?.toDouble(),
         locationLng: (j['location_lng'] as num?)?.toDouble(),
         locationAddress: j['location_address'] as String?,

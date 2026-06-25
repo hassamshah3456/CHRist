@@ -9,6 +9,7 @@ import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import 'auth/welcome_screen.dart';
 import 'collect/collect_consent_screen.dart';
+import 'payment_screen.dart';
 import 'collections_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -91,6 +92,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 icon: const Icon(Icons.history_rounded),
                 label: const Text('See past collections'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PaymentScreen()),
+                ),
+                icon: const Icon(Icons.payments_outlined),
+                label: const Text('My payments'),
               ),
             ],
           ),

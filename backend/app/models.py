@@ -43,6 +43,9 @@ class User(Base):
     signup_lng = Column(Float, nullable=True)
     signup_address = Column(String(512), nullable=True)
 
+    # Whether the one-time training fee has been paid out to this collector.
+    training_paid = Column(Boolean, nullable=False, default=False)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
     collections = relationship("Collection", back_populates="user")
@@ -74,10 +77,18 @@ class Collection(Base):
     responder = Column(String(20), nullable=True)        # father / mother / other
     responder_other = Column(String(255), nullable=True)  # free text when "other"
 
+    # Step 4 — medical record
+    medical_record = Column(Boolean, nullable=True)            # has a medical record
+    medical_record_photo = Column(String(255), nullable=True)  # uploaded photo
+    vaccines = Column(String(64), nullable=True)               # CSV: opv,ipv,none
+
     # Location captured when the collection was started
     location_lat = Column(Float, nullable=True)
     location_lng = Column(Float, nullable=True)
     location_address = Column(String(512), nullable=True)
+
+    # Payout tracking: false until the admin marks this entry as paid.
+    paid = Column(Boolean, nullable=False, default=False, index=True)
 
     # Client timestamp (when it was actually collected, possibly offline)
     collected_at = Column(DateTime, default=datetime.utcnow, index=True)
@@ -133,3 +144,28 @@ class Answer(Base):
     photo_filename = Column(String(255), nullable=True)
 
     collection = relationship("Collection", back_populates="answers")
+
+
+class Setting(Base):
+    """Simple key/value store for admin-configurable settings (payment rates)."""
+    __tablename__ = "settings"
+
+    key = Column(String(64), primary_key=True)
+    value = Column(String(255), nullable=True)
+
+
+class Payout(Base):
+    """A recorded payment to a collector. Created when an admin marks them paid;
+    it freezes how many entries were settled so the app can show the receipt and
+    the 'due' counter resets to zero."""
+    __tablename__ = "payouts"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+    user_id = Column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
+    amount = Column(Float, nullable=False, default=0)
+    entries_count = Column(Integer, nullable=False, default=0)
+    per_entry = Column(Float, nullable=False, default=0)
+    training_included = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

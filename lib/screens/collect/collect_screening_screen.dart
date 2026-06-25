@@ -13,7 +13,7 @@ import '../../services/location_service.dart';
 import '../../services/questionnaire_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
-import 'collect_records_screen.dart';
+import 'collect_medical_screen.dart';
 import 'step_indicator.dart';
 
 /// Step 3: dynamic, admin-managed screening questions. Saves the collection.
@@ -221,7 +221,7 @@ class _CollectScreeningScreenState extends State<CollectScreeningScreen> {
     FocusScope.of(context).unfocus();
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => CollectRecordsScreen(
+        builder: (_) => CollectMedicalScreen(
           verbalConsent: widget.verbalConsent,
           phone: widget.phone,
           location: widget.location,

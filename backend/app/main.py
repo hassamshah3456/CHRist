@@ -36,6 +36,13 @@ def _ensure_columns():
         "collections": {
             "child_name": "VARCHAR(255)",
             "child_age_months": "INTEGER",
+            "medical_record": "BOOLEAN",
+            "medical_record_photo": "VARCHAR(255)",
+            "vaccines": "VARCHAR(64)",
+            "paid": "BOOLEAN DEFAULT FALSE",
+        },
+        "users": {
+            "training_paid": "BOOLEAN DEFAULT FALSE",
         },
     }
     inspector = inspect(engine)

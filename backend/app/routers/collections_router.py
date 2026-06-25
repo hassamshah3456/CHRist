@@ -7,7 +7,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from .. import models, schemas
+from .. import models, payments, schemas
 from ..auth import get_current_user
 from ..config import settings
 from ..database import get_db
@@ -73,6 +73,9 @@ def sync(
             child_sex=item.child_sex,
             responder=item.responder,
             responder_other=item.responder_other,
+            medical_record=item.medical_record,
+            medical_record_photo=item.medical_record_photo,
+            vaccines=item.vaccines,
             location_lat=item.location_lat,
             location_lng=item.location_lng,
             location_address=item.location_address,
@@ -121,6 +124,27 @@ async def upload_photo(
     with open(os.path.join(settings.MEDIA_DIR, name), "wb") as f:
         f.write(content)
     return {"filename": name}
+
+
+@router.get("/payment", response_model=schemas.MyPayment)
+def my_payment(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Payment summary for the signed-in collector (app payment screen)."""
+    cfg = payments.get_config(db)
+    due = payments.collector_due(db, user, cfg)
+    last = payments.last_payout(db, user.id)
+    return schemas.MyPayment(
+        currency=cfg["currency"],
+        per_entry=cfg["per_entry"],
+        training=cfg["training"],
+        total_entries=due["total_entries"],
+        unpaid_entries=due["unpaid_entries"],
+        due=due["due"],
+        training_paid=due["training_paid"],
+        last_payout=last,
+    )
 
 
 @router.get("", response_model=List[schemas.CollectionOut])

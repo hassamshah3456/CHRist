@@ -115,6 +115,9 @@ class CollectionIn(BaseModel):
     child_sex: Optional[str] = None
     responder: Optional[str] = None
     responder_other: Optional[str] = None
+    medical_record: Optional[bool] = None
+    medical_record_photo: Optional[str] = None
+    vaccines: Optional[str] = None
     location_lat: Optional[float] = None
     location_lng: Optional[float] = None
     location_address: Optional[str] = None
@@ -132,6 +135,9 @@ class CollectionOut(BaseModel):
     child_sex: Optional[str] = None
     responder: Optional[str] = None
     responder_other: Optional[str] = None
+    medical_record: Optional[bool] = None
+    medical_record_photo: Optional[str] = None
+    vaccines: Optional[str] = None
     location_lat: Optional[float] = None
     location_lng: Optional[float] = None
     location_address: Optional[str] = None
@@ -224,8 +230,64 @@ class AdminCollectionOut(BaseModel):
     child_sex: Optional[str] = None
     responder: Optional[str] = None
     responder_other: Optional[str] = None
+    medical_record: Optional[bool] = None
+    medical_record_photo: Optional[str] = None
+    vaccines: Optional[str] = None
     location_lat: Optional[float] = None
     location_lng: Optional[float] = None
     location_address: Optional[str] = None
     collected_at: datetime
     answers: List[AnswerOut] = []
+
+
+# ---------- Payments ----------
+class PaymentConfig(BaseModel):
+    """Admin-configurable payout rates (currency is informational)."""
+    per_entry: float = 0
+    training: float = 0
+    currency: str = "₹"
+
+
+class PayoutOut(BaseModel):
+    amount: float
+    entries_count: int
+    per_entry: float
+    training_included: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class CollectorPayment(BaseModel):
+    """Per-collector payout status for the admin Payments table."""
+    id: str
+    name: str
+    email: EmailStr
+    upi_address: str
+    upi_name: Optional[str] = None
+    total_entries: int
+    unpaid_entries: int
+    per_entry: float
+    training: float
+    training_paid: bool
+    due: float                  # unpaid_entries*per_entry (+ training if unpaid)
+    currency: str = "₹"
+    last_payout: Optional[PayoutOut] = None
+
+
+class PaymentsOverview(BaseModel):
+    config: PaymentConfig
+    collectors: List[CollectorPayment]
+
+
+class MyPayment(BaseModel):
+    """Payment summary shown to a collector in the app."""
+    currency: str = "₹"
+    per_entry: float
+    training: float
+    total_entries: int
+    unpaid_entries: int
+    due: float
+    training_paid: bool
+    last_payout: Optional[PayoutOut] = None

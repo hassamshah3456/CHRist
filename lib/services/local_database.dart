@@ -21,7 +21,7 @@ class LocalDatabase {
     final path = p.join(dir, 'usmlewise_christ.db');
     return openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, _) async {
         await db.execute('''
           CREATE TABLE collections (
@@ -35,6 +35,10 @@ class LocalDatabase {
             child_sex TEXT,
             responder TEXT,
             responder_other TEXT,
+            medical_record INTEGER,
+            vaccines TEXT,
+            medical_record_photo_local TEXT,
+            medical_record_photo TEXT,
             location_lat REAL,
             location_lng REAL,
             location_address TEXT,
@@ -57,6 +61,12 @@ class LocalDatabase {
         }
         if (oldV < 5) {
           await db.execute('ALTER TABLE collections ADD COLUMN child_name TEXT');
+        }
+        if (oldV < 6) {
+          await db.execute('ALTER TABLE collections ADD COLUMN medical_record INTEGER');
+          await db.execute('ALTER TABLE collections ADD COLUMN vaccines TEXT');
+          await db.execute('ALTER TABLE collections ADD COLUMN medical_record_photo_local TEXT');
+          await db.execute('ALTER TABLE collections ADD COLUMN medical_record_photo TEXT');
         }
       },
     );

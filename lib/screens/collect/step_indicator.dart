@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
 
-/// Progress indicator for the 4-step collection flow.
+/// Progress indicator for the 5-step collection flow.
 class StepIndicator extends StatelessWidget {
-  final int step; // 1..4
+  final int step; // 1..5
   const StepIndicator({super.key, required this.step});
 
   @override
@@ -41,7 +41,9 @@ class StepIndicator extends StatelessWidget {
         const SizedBox(width: 6),
         dot(3, 'Screening'),
         const SizedBox(width: 6),
-        dot(4, 'Records'),
+        dot(4, 'Medical'),
+        const SizedBox(width: 6),
+        dot(5, 'Review'),
       ],
     );
   }

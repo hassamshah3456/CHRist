@@ -161,6 +161,16 @@ tbody tr:hover { background: #f7f9fe; }
 .pos-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent));
   border-radius: 6px; transition: width .4s ease; }
 
+/* ---------- Payments ---------- */
+.rate-row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.rate-row label { display: flex; flex-direction: column; gap: 6px; font-size: 13px;
+  color: var(--muted); font-weight: 600; }
+.rate-row input { padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: 10px; font-size: 15px; outline: none; width: 130px; }
+.rate-row input:focus { border-color: var(--primary); }
+.rates-saved { color: var(--success); font-weight: 700; font-size: 13px; }
+.pay-btn:disabled { opacity: .45; cursor: default; }
+
 /* ---------- Nav ---------- */
 .nav { display: flex; gap: 4px; margin-left: 8px; }
 .nav-btn {

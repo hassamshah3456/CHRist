@@ -56,6 +56,12 @@ class SyncService {
         // filename. Persist as we go, so a later failure never re-uploads.
         for (final c in pending) {
           var changed = false;
+          if (c.medicalRecordPhotoLocalPath != null &&
+              c.medicalRecordPhotoFilename == null) {
+            c.medicalRecordPhotoFilename =
+                await api.uploadPhoto(c.medicalRecordPhotoLocalPath!);
+            changed = true;
+          }
           for (final a in c.answers) {
             if (a.photoLocalPath != null && a.photoFilename == null) {
               a.photoFilename = await api.uploadPhoto(a.photoLocalPath!);
