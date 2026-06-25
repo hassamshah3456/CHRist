@@ -138,11 +138,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 14),
                 _field(
                   controller: _upiAddress,
-                  label: 'UPI ID (e.g. name@bank)',
+                  label: 'UPI ID (optional)',
                   icon: Icons.account_balance_wallet_outlined,
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Enter your UPI ID'
-                      : null,
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Text(
+                    "Optional — you may use a relative's UPI account if you "
+                    "don't have one.",
+                    style: TextStyle(color: AppTheme.textMuted, fontSize: 12.5),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 CheckboxListTile(

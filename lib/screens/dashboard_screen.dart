@@ -9,7 +9,8 @@ import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import 'auth/welcome_screen.dart';
-import 'collect/collect_consent_screen.dart';
+import 'collect/collect_form_screen.dart';
+import 'instructions_screen.dart';
 import 'payment_screen.dart';
 import 'collections_screen.dart';
 
@@ -44,7 +45,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     await _checkLocation();
     if (!mounted) return;
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const CollectConsentScreen()),
+      MaterialPageRoute(builder: (_) => const CollectFormScreen()),
     );
   }
 
@@ -81,6 +82,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
               _StatsGrid(stats: cp.stats),
               const SizedBox(height: 22),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const InstructionsScreen()),
+                ),
+                icon: const Icon(Icons.menu_book_outlined),
+                label: const Text('Instructions'),
+              ),
+              const SizedBox(height: 12),
               ElevatedButton.icon(
                 onPressed: _startCollecting,
                 icon: const Icon(Icons.add_location_alt_rounded),

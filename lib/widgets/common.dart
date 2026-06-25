@@ -42,7 +42,7 @@ class BrandLogo extends StatelessWidget {
           ),
         ),
         Text(
-          'CHRIST',
+          'CRIST',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,

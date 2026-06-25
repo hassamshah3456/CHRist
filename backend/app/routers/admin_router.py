@@ -492,6 +492,28 @@ def get_photo(
     return FileResponse(path)
 
 
+# ---------- Instructions ----------
+_INSTRUCTIONS_KEY = "instructions_html"
+
+
+@router.get("/instructions", response_model=schemas.Instructions)
+def get_instructions(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    return schemas.Instructions(html=payments.get_setting(db, _INSTRUCTIONS_KEY))
+
+
+@router.put("/instructions", response_model=schemas.Instructions)
+def update_instructions(
+    body: schemas.Instructions,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    payments.set_setting(db, _INSTRUCTIONS_KEY, body.html)
+    return body
+
+
 # ---------- Payments ----------
 def _payment_config_schema(cfg: dict) -> schemas.PaymentConfig:
     return schemas.PaymentConfig(

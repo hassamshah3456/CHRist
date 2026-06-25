@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UsmleWise CHRIST — Management</title>
+  <title>UsmleWise CRIST — Management</title>
 
   <!-- Chart.js + Leaflet (CDN) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=7" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
 
@@ -20,7 +20,7 @@
     <div class="brand">
       <img src="logo.png?v=1" class="brand-logo lg" alt="UsmleWise" />
       <div>
-        <div class="brand-name">UsmleWise <span>CHRIST</span></div>
+        <div class="brand-name">UsmleWise <span>CRIST</span></div>
         <div class="brand-sub">Management Dashboard</div>
       </div>
     </div>
@@ -39,12 +39,13 @@
   <header class="topbar">
     <div class="topbar-left">
       <img src="logo.png?v=1" class="brand-logo" alt="UsmleWise" />
-      <span class="topbar-title">UsmleWise CHRIST</span>
+      <span class="topbar-title">UsmleWise CRIST</span>
       <nav class="nav">
         <button class="nav-btn active" data-view="dashboard">Dashboard</button>
         <button class="nav-btn" data-view="groups">Groups</button>
         <button class="nav-btn" data-view="questionnaire">Questionnaire</button>
         <button class="nav-btn" data-view="payments">Payments</button>
+        <button class="nav-btn" data-view="instructions">Instructions</button>
       </nav>
     </div>
     <div class="topbar-right">
@@ -256,7 +257,29 @@
       </section>
     </div>
 
-    <footer class="foot">UsmleWise CHRIST · data is synced from the field app in real time.</footer>
+    <!-- ===== INSTRUCTIONS ===== -->
+    <div id="view-instructions" class="hidden">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h3 style="margin-bottom:4px">Collector instructions</h3>
+            <small>Shown in the app under “Instructions”. Supports basic formatting.</small>
+          </div>
+          <button class="btn-primary" id="save-instructions-btn">Save</button>
+        </div>
+        <div class="rt-toolbar">
+          <button type="button" data-cmd="bold"><b>B</b></button>
+          <button type="button" data-cmd="italic"><i>I</i></button>
+          <button type="button" data-cmd="insertUnorderedList">• List</button>
+          <button type="button" data-cmd="insertOrderedList">1. List</button>
+          <button type="button" data-cmd="formatBlock" data-arg="h3">H</button>
+        </div>
+        <div id="instructions-editor" class="rt-editor" contenteditable="true"></div>
+        <span id="instructions-saved" class="rates-saved"></span>
+      </section>
+    </div>
+
+    <footer class="foot">UsmleWise CRIST · data is synced from the field app in real time.</footer>
   </main>
 </div>
 
@@ -265,6 +288,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

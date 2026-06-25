@@ -1,4 +1,4 @@
-"""UsmleWise CHRIST API entrypoint."""
+"""UsmleWise CRIST API entrypoint."""
 import os
 
 from fastapi import Depends, FastAPI

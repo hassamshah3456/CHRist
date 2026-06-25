@@ -31,7 +31,7 @@ class Settings:
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 30))  # 30 days
     )
 
-    PROJECT_NAME: str = "UsmleWise CHRIST API"
+    PROJECT_NAME: str = "UsmleWise CRIST API"
 
     # Where uploaded photos (e.g. OPD cards) are stored on disk. These are
     # medical records, so they're served only through an admin-authenticated

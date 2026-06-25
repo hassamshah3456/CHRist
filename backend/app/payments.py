@@ -16,6 +16,20 @@ TRAINING_KEY = "payment_training"
 CURRENCY = "₹"
 
 
+def get_setting(db: Session, key: str, default: str = "") -> str:
+    row = db.query(models.Setting).filter(models.Setting.key == key).first()
+    return row.value if row and row.value is not None else default
+
+
+def set_setting(db: Session, key: str, value: str) -> None:
+    row = db.query(models.Setting).filter(models.Setting.key == key).first()
+    if row is None:
+        db.add(models.Setting(key=key, value=value))
+    else:
+        row.value = value
+    db.commit()
+
+
 def get_config(db: Session) -> dict:
     rows = {s.key: s.value for s in db.query(models.Setting).all()}
 

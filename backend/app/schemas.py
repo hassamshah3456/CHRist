@@ -16,7 +16,8 @@ class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1)
     email: EmailStr
     password: str = Field(..., min_length=6)
-    upi_address: str = Field(..., min_length=1)
+    # Optional: a collector may use a relative's UPI, or none at all.
+    upi_address: str = ""
     upi_name: Optional[str] = None
     signup_location: Optional[GeoPoint] = None
 
@@ -284,6 +285,11 @@ class AdminCollectionOut(BaseModel):
 
 
 # ---------- Payments ----------
+class Instructions(BaseModel):
+    """Admin-authored collector instructions (rich text / HTML)."""
+    html: str = ""
+
+
 class PaymentConfig(BaseModel):
     """Admin-configurable payout rates (currency is informational)."""
     per_entry: float = 0

@@ -312,3 +312,19 @@ tr.grouped td:first-child { border-left: 3px solid var(--primary); }
 .member-option:last-child { border-bottom: none; }
 .member-option span { display: flex; flex-direction: column; }
 .member-option small { margin-top: 2px; }
+
+/* ---------- Instructions rich-text editor ---------- */
+.rt-toolbar { display: flex; gap: 6px; margin: 12px 0 8px; }
+.rt-toolbar button {
+  border: 1px solid var(--border); background: #fff; border-radius: 8px;
+  padding: 6px 12px; cursor: pointer; font-size: 14px;
+}
+.rt-toolbar button:hover { background: #f1f4fb; }
+.rt-editor {
+  min-height: 240px; border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 16px; font-size: 15px; line-height: 1.55; outline: none;
+  background: #fff;
+}
+.rt-editor:focus { border-color: var(--primary); }
+.rt-editor h3 { margin: 8px 0; }
+.rt-editor ul, .rt-editor ol { padding-left: 22px; }

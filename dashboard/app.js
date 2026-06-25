@@ -1,4 +1,4 @@
-/* UsmleWise CHRIST — management dashboard (vanilla JS, same-origin API). */
+/* UsmleWise CRIST — management dashboard (vanilla JS, same-origin API). */
 "use strict";
 
 // Same origin as the API (served by FastAPI at /admin). Override only for
@@ -418,14 +418,46 @@ function switchView(view) {
   $("#view-groups").classList.toggle("hidden", view !== "groups");
   $("#view-questionnaire").classList.toggle("hidden", view !== "questionnaire");
   $("#view-payments").classList.toggle("hidden", view !== "payments");
+  $("#view-instructions").classList.toggle("hidden", view !== "instructions");
   if (view === "groups") loadGroups();
   else {
     stopGroupLiveRefresh();
     if (view === "questionnaire") loadQuestions();
     else if (view === "payments") loadPayments();
+    else if (view === "instructions") loadInstructions();
     else setTimeout(() => map && map.invalidateSize(), 100);
   }
 }
+
+/* ---------- instructions ---------- */
+async function loadInstructions() {
+  try {
+    const data = await api("/api/instructions");
+    $("#instructions-editor").innerHTML = (data && data.html) || "";
+  } catch (e) { alert(e.message); }
+}
+
+async function saveInstructions() {
+  const html = $("#instructions-editor").innerHTML;
+  try {
+    await api("/api/instructions", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ html }),
+    });
+    $("#instructions-saved").textContent = "Saved ✓";
+    setTimeout(() => { $("#instructions-saved").textContent = ""; }, 2000);
+  } catch (e) { alert(e.message); }
+}
+
+document.querySelectorAll(".rt-toolbar button").forEach((b) =>
+  b.addEventListener("click", (e) => {
+    e.preventDefault();
+    $("#instructions-editor").focus();
+    document.execCommand(b.dataset.cmd, false, b.dataset.arg || null);
+  }));
+const _saveInstrBtn = $("#save-instructions-btn");
+if (_saveInstrBtn) _saveInstrBtn.addEventListener("click", saveInstructions);
 document.querySelectorAll(".nav-btn").forEach((b) =>
   b.addEventListener("click", () => switchView(b.dataset.view)));
 

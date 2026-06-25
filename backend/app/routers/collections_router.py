@@ -126,6 +126,17 @@ async def upload_photo(
     return {"filename": name}
 
 
+@router.get("/instructions", response_model=schemas.Instructions)
+def collector_instructions(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """The admin-authored instructions, shown in the app."""
+    return schemas.Instructions(
+        html=payments.get_setting(db, "instructions_html")
+    )
+
+
 @router.get("/payment", response_model=schemas.MyPayment)
 def my_payment(
     db: Session = Depends(get_db),
