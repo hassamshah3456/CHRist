@@ -25,43 +25,46 @@ Base.metadata.create_all(bind=engine)
 
 
 def _ensure_columns():
-    """Idempotently add columns introduced after the table first existed.
+    """Self-healing schema patch: add any model column missing from an existing
+    table. create_all() never alters existing tables, so a database created by
+    an older build can be missing columns added since (phone, child_name, the
+    payment/medical fields, …). We derive the column list and types straight
+    from the models, so this stays correct as the models evolve.
 
-    create_all() never alters existing tables, so newly-added model columns
-    (e.g. child_name, child_age_months) would be missing on a database created
-    by an older build. This adds them in place — DB-agnostic and safe to run on
-    every startup.
+    DB-agnostic, idempotent, and tolerant of Gunicorn's multiple workers each
+    importing this module at once.
     """
-    wanted = {
-        "collections": {
-            "child_name": "VARCHAR(255)",
-            "child_age_months": "INTEGER",
-            "medical_record": "BOOLEAN",
-            "medical_record_photo": "VARCHAR(255)",
-            "vaccines": "VARCHAR(64)",
-            "paid": "BOOLEAN DEFAULT FALSE",
-        },
-        "users": {
-            "training_paid": "BOOLEAN DEFAULT FALSE",
-        },
-    }
+    # NOT NULL columns get a default so existing rows backfill cleanly; others
+    # are added nullable (safe for backfilling an already-populated table).
+    not_null_defaults = {"paid": "0", "training_paid": "0"}
     inspector = inspect(engine)
-    for table, columns in wanted.items():
+    prep = engine.dialect.identifier_preparer
+    for table_name, table in Base.metadata.tables.items():
         try:
-            existing = {c["name"] for c in inspector.get_columns(table)}
+            existing = {c["name"] for c in inspector.get_columns(table_name)}
         except Exception:
-            continue  # table not present yet; create_all handles fresh installs
-        for name, ddl in columns.items():
-            if name not in existing:
-                try:
-                    with engine.begin() as conn:
-                        conn.execute(
-                            text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
-                        )
-                except Exception:
-                    # Another worker added it first (Gunicorn forks several
-                    # workers that each import this module) — safe to ignore.
-                    pass
+            continue  # table absent; create_all() handles fresh installs
+        for col in table.columns:
+            if col.name in existing:
+                continue
+            try:
+                coltype = col.type.compile(dialect=engine.dialect)
+            except Exception:
+                continue
+            if col.name in not_null_defaults:
+                tail = f" NOT NULL DEFAULT {not_null_defaults[col.name]}"
+            else:
+                tail = " NULL"  # backfill existing rows with NULL
+            ddl = (
+                f"ALTER TABLE {prep.quote(table_name)} "
+                f"ADD COLUMN {prep.quote(col.name)} {coltype}{tail}"
+            )
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(ddl))
+            except Exception:
+                # Already added (e.g. another worker won the race) — ignore.
+                pass
 
 
 _ensure_columns()
