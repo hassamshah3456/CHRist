@@ -3,6 +3,9 @@ uvicorn[standard]==0.30.1
 SQLAlchemy==2.0.30
 pydantic[email]==2.7.1
 passlib[bcrypt]==1.7.4
+# Pin bcrypt: passlib 1.7.4 is incompatible with bcrypt>=4.1 (its self-test
+# raises "password cannot be longer than 72 bytes"). 4.0.1 works cleanly.
+bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 python-multipart==0.0.9
 python-dotenv==1.0.1
