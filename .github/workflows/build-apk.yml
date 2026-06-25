@@ -1,0 +1,60 @@
+name: Build Android APK
+
+# Builds a release APK in the cloud. No local Flutter/Android toolchain needed.
+# Trigger manually from the Actions tab, or on every push to main.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          # Pinned for reproducible builds and to match the package versions
+          # in pubspec.yaml. Bump deliberately when you upgrade dependencies.
+          flutter-version: "3.24.5"
+
+      # Generate the android/ platform scaffolding (does not touch lib/ or
+      # pubspec.yaml, which already exist in the repo).
+      - name: Generate platform files
+        run: flutter create --org com.usmlewise --project-name usmlewise_christ --platforms=android .
+
+      # Overlay our manifest that declares location + internet permissions.
+      - name: Apply Android permissions manifest
+        run: cp android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # API_BASE_URL must be set as a repository Variable (Settings > Secrets
+      # and variables > Actions > Variables). Falls back to the default in
+      # config.dart if unset (only useful for emulator testing).
+      - name: Build release APK
+        run: |
+          if [ -n "${{ vars.API_BASE_URL }}" ]; then
+            flutter build apk --release --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
+          else
+            echo "::warning::API_BASE_URL repo variable not set; using config.dart default."
+            flutter build apk --release
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: usmlewise-christ-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error

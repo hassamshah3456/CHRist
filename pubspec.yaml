@@ -1,0 +1,42 @@
+name: usmlewise_christ
+description: "UsmleWise CHRIST - field data collection app."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  provider: ^6.1.2
+
+  # Networking
+  http: ^1.2.1
+
+  # Local offline storage (sync queue + cached user)
+  sqflite: ^2.3.3
+  path: ^1.9.0
+  path_provider: ^2.1.3
+  shared_preferences: ^2.2.3
+
+  # Location
+  geolocator: ^12.0.0
+  geocoding: ^3.0.0
+
+  # Connectivity (drives auto-sync when internet returns)
+  connectivity_plus: ^6.0.3
+
+  # Misc
+  intl: ^0.19.0
+  uuid: ^4.4.0
+  google_fonts: ^6.2.1
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
