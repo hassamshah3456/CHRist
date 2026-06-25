@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=6" />
+  <link rel="stylesheet" href="styles.css?v=7" />
 </head>
 <body>
 
@@ -80,7 +80,7 @@
 
     <section class="grid-2">
       <div class="card">
-        <h3>Child sex</h3>
+        <h3>Child Gender</h3>
         <canvas id="chart-sex" height="120"></canvas>
       </div>
       <div class="card">
@@ -129,7 +129,7 @@
           <table id="collections-table">
             <thead>
               <tr>
-                <th>When</th><th>Collector</th><th>Phone</th><th>Child</th><th>Age</th><th>Sex</th>
+                <th>When</th><th>Collector</th><th>Phone</th><th>Child</th><th>Age</th><th>Gender</th>
                 <th>Responder</th><th>Consent</th><th>Location</th>
               </tr>
             </thead>
@@ -180,6 +180,14 @@
             <button class="btn-danger" id="delete-group-btn">Delete</button>
           </div>
         </div>
+        <div class="group-live-head">
+          <div>
+            <h3>Live collector locations</h3>
+            <small>Updates automatically every 15 seconds while this page is open.</small>
+          </div>
+          <span id="group-live-updated" class="live-updated"></span>
+        </div>
+        <div id="group-live-map"></div>
         <div class="table-wrap">
           <table id="group-members-table">
             <thead>
@@ -257,6 +265,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=6"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

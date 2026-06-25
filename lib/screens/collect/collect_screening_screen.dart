@@ -61,22 +61,40 @@ class _CollectScreeningScreenState extends State<CollectScreeningScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    final service = context.read<QuestionnaireService>();
+    final cached = service.cached;
+    if (service.cacheReady) {
+      _setQuestions(cached, notify: false);
+      _loading = false;
+      service.refreshIfChanged();
+    } else {
+      _load();
+    }
   }
 
   Future<void> _load() async {
     final qs = await context.read<QuestionnaireService>().load();
     if (!mounted) return;
+    _setQuestions(qs);
+  }
+
+  void _setQuestions(List<Question> qs, {bool notify = true}) {
     for (final q in qs) {
       if (q.qtype == 'multi_choice') _multi[q.id] = <String>{};
       if (q.qtype == 'number' || q.qtype == 'text') {
         _text[q.id] = TextEditingController();
       }
     }
-    setState(() {
+    void update() {
       _questions = qs;
       _loading = false;
-    });
+    }
+
+    if (notify) {
+      setState(update);
+    } else {
+      update();
+    }
   }
 
   @override
@@ -114,7 +132,8 @@ class _CollectScreeningScreenState extends State<CollectScreeningScreen> {
           .pickImage(source: source, imageQuality: 70, maxWidth: 1600);
       if (x == null) return;
       final dir = await getApplicationDocumentsDirectory();
-      final dest = p.join(dir.path, 'photo_${_uuid.v4()}${p.extension(x.path)}');
+      final dest =
+          p.join(dir.path, 'photo_${_uuid.v4()}${p.extension(x.path)}');
       await File(x.path).copy(dest);
       if (mounted) setState(() => _photos[qid] = dest);
     } catch (_) {
@@ -310,8 +329,8 @@ class _CollectScreeningScreenState extends State<CollectScreeningScreen> {
           if (q.helpText != null && q.helpText!.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(q.helpText!,
-                style: const TextStyle(
-                    color: AppTheme.textMuted, fontSize: 13)),
+                style:
+                    const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
           ],
           const SizedBox(height: 12),
           _buildInput(q),

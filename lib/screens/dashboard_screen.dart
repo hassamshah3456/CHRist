@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/collection_provider.dart';
 import '../services/location_service.dart';
+import '../services/questionnaire_service.dart';
 import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
@@ -27,6 +28,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<CollectionProvider>().refreshStats();
+      context.read<QuestionnaireService>().prepare();
       _checkLocation();
     });
   }
@@ -87,8 +89,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                      builder: (_) => const CollectionsScreen()),
+                  MaterialPageRoute(builder: (_) => const CollectionsScreen()),
                 ),
                 icon: const Icon(Icons.history_rounded),
                 label: const Text('See past collections'),
@@ -113,8 +114,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Sign out?'),
-        content: const Text(
-            'Unsynced collections will be cleared on this device.'),
+        content:
+            const Text('Unsynced collections will be cleared on this device.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -154,8 +155,8 @@ class _Header extends StatelessWidget {
                   style: TextStyle(color: AppTheme.textMuted, fontSize: 14)),
               Text(
                 firstName,
-                style: const TextStyle(
-                    fontSize: 26, fontWeight: FontWeight.w800),
+                style:
+                    const TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
               ),
             ],
           ),
@@ -248,8 +249,7 @@ class _StatsGrid extends StatelessWidget {
                   label: 'Consent: Yes',
                   value: stats.consentYes,
                   color: AppTheme.success),
-              Container(
-                  width: 1, height: 36, color: const Color(0xFFE6E9F2)),
+              Container(width: 1, height: 36, color: const Color(0xFFE6E9F2)),
               _ConsentStat(
                   label: 'Consent: No',
                   value: stats.consentNo,
@@ -293,12 +293,11 @@ class _StatTile extends StatelessWidget {
             const SizedBox(height: 14),
             Text(
               '$value',
-              style:
-                  const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
             ),
             Text(label,
-                style: const TextStyle(
-                    color: AppTheme.textMuted, fontSize: 13)),
+                style:
+                    const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
           ],
         ),
       ),
@@ -323,8 +322,7 @@ class _ConsentStat extends StatelessWidget {
                   fontSize: 22, fontWeight: FontWeight.w800, color: color)),
           const SizedBox(height: 2),
           Text(label,
-              style:
-                  const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
+              style: const TextStyle(color: AppTheme.textMuted, fontSize: 12)),
         ],
       ),
     );

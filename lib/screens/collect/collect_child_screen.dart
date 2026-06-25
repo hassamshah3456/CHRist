@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../services/location_service.dart';
+import '../../services/questionnaire_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import 'collect_screening_screen.dart';
@@ -32,6 +34,14 @@ class _CollectChildScreenState extends State<CollectChildScreen> {
 
   String? _sex; // Male / Female / Other
   String? _responder; // Father / Mother / Others
+
+  @override
+  void initState() {
+    super.initState();
+    // Check for admin changes while the collector fills screen 2, so screen 3
+    // can render the already-prepared questionnaire without a network pause.
+    context.read<QuestionnaireService>().prepare();
+  }
 
   @override
   void dispose() {
@@ -77,7 +87,8 @@ class _CollectChildScreenState extends State<CollectChildScreen> {
     }
     FocusScope.of(context).unfocus();
 
-    final responderCode = _responder == 'Others' ? 'other' : _responder!.toLowerCase();
+    final responderCode =
+        _responder == 'Others' ? 'other' : _responder!.toLowerCase();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CollectScreeningScreen(

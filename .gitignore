@@ -30,3 +30,7 @@ backend/.env
 
 # Claude Code local state
 .claude/
+
+# build artifacts
+app-release.apk
+logo-circle-96.png

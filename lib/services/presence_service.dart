@@ -15,8 +15,6 @@ class PresenceService {
   String? _sessionId;
   bool _sending = false;
   bool _enabled = false;
-  CapturedLocation? _lastLocation;
-  DateTime? _locationCapturedAt;
 
   PresenceService(this.api, this.location);
 
@@ -35,31 +33,32 @@ class PresenceService {
     if (_timer != null) return;
     _sessionId = const Uuid().v4();
     _send();
-    _timer = Timer.periodic(const Duration(minutes: 1), (_) => _send());
+    _timer = Timer.periodic(const Duration(seconds: 30), (_) => _send());
   }
 
   void stop() {
     _timer?.cancel();
     _timer = null;
     _sessionId = null;
-    _lastLocation = null;
-    _locationCapturedAt = null;
   }
 
   Future<void> _send() async {
     if (_sending || _sessionId == null) return;
     _sending = true;
+    final sessionId = _sessionId!;
     try {
-      final now = DateTime.now();
-      if (_lastLocation == null ||
-          _locationCapturedAt == null ||
-          now.difference(_locationCapturedAt!) >= const Duration(minutes: 5)) {
-        _lastLocation = await location.capture();
-        _locationCapturedAt = now;
-      }
-      final loc = _lastLocation!;
+      // Report presence immediately. A slow GPS fix must not make an active
+      // collector appear offline in the admin dashboard.
       await api.postJson('/auth/heartbeat', {
-        'session_id': _sessionId,
+        'session_id': sessionId,
+      });
+
+      // Then capture and publish the latest position. This second heartbeat
+      // updates the same session and is safe if location permission is denied.
+      final loc = await location.capture(includeAddress: false);
+      if (!loc.hasFix || _sessionId != sessionId) return;
+      await api.postJson('/auth/heartbeat', {
+        'session_id': sessionId,
         'location': {
           'lat': loc.lat,
           'lng': loc.lng,

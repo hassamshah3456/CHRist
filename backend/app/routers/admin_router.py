@@ -20,7 +20,7 @@ from ..config import settings
 from ..database import get_db
 
 router = APIRouter(prefix="/api", tags=["admin"])
-ONLINE_WINDOW = timedelta(minutes=2)
+ONLINE_WINDOW = timedelta(minutes=3)
 
 
 def _answers_by_collection(db: Session, collection_ids: List[str]):

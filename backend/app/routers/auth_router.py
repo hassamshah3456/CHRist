@@ -74,7 +74,7 @@ def heartbeat(
 ):
     """Record foreground app activity and the collector's latest location.
 
-    Heartbeats are sent once per minute. Time is accumulated only when two
+    Heartbeats are sent about every 30 seconds. Time is accumulated only when two
     consecutive heartbeats belong to the same foreground session, and each
     interval is capped to avoid counting time while the app was suspended.
     """

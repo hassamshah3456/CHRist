@@ -43,7 +43,7 @@ class LocationService {
   Future<void> openAppSettings() => Geolocator.openAppSettings();
 
   /// Captures the current position and reverse-geocodes it. Never throws.
-  Future<CapturedLocation> capture() async {
+  Future<CapturedLocation> capture({bool includeAddress = true}) async {
     try {
       final ok = await ensurePermission();
       if (!ok) return const CapturedLocation();
@@ -54,21 +54,23 @@ class LocationService {
       );
 
       String? address;
-      try {
-        final placemarks =
-            await placemarkFromCoordinates(pos.latitude, pos.longitude);
-        if (placemarks.isNotEmpty) {
-          final p = placemarks.first;
-          address = [
-            p.name,
-            p.subLocality,
-            p.locality,
-            p.administrativeArea,
-            p.country,
-          ].where((s) => s != null && s.trim().isNotEmpty).join(', ');
+      if (includeAddress) {
+        try {
+          final placemarks =
+              await placemarkFromCoordinates(pos.latitude, pos.longitude);
+          if (placemarks.isNotEmpty) {
+            final p = placemarks.first;
+            address = [
+              p.name,
+              p.subLocality,
+              p.locality,
+              p.administrativeArea,
+              p.country,
+            ].where((s) => s != null && s.trim().isNotEmpty).join(', ');
+          }
+        } catch (_) {
+          // Reverse geocoding is best-effort; coordinates are enough.
         }
-      } catch (_) {
-        // Reverse geocoding is best-effort; coordinates are enough.
       }
 
       return CapturedLocation(

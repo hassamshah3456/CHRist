@@ -83,6 +83,7 @@ extra install is needed.
 | POST   | `/auth/heartbeat`     | Collector presence, latest location, and foreground app time |
 | GET/POST | `/api/groups`       | **Admin**: list/create collector groups |
 | GET/PUT/DELETE | `/api/groups/{id}` | **Admin**: group members and individual activity |
+| GET    | `/questionnaire/version` | Lightweight questionnaire change fingerprint |
 | GET    | `/api/export.csv`     | **Admin**: CSV export of submissions     |
 
 ### Admin web dashboard (served at `/admin`)
@@ -101,6 +102,11 @@ python manage.py create-admin --email you@usmlewise.com --password 'StrongPass1'
 ```
 This also promotes an existing user (matched by email) to admin. Then sign in at
 `/admin`. Admin accounts are management-only and are not listed as collectors.
+
+The **Groups** view refreshes collector presence and latest GPS coordinates
+every 15 seconds. Its embedded live map uses OpenStreetMap (no API key), and
+each collector location includes a link that opens the coordinates in Google
+Maps.
 
 ---
 

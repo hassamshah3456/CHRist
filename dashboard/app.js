@@ -14,6 +14,9 @@ let lastCollections = [];
 let allCollectors = [];
 let groups = [];
 let selectedGroup = null;
+let groupMap;
+let groupMarkersLayer;
+let groupRefreshTimer;
 
 /* ---------- helpers ---------- */
 function getToken() { return localStorage.getItem(TOKEN_KEY); }
@@ -65,6 +68,15 @@ function fmtDuration(seconds) {
 function collectorLocation(c) {
   return c.last_address
     || (c.last_lat != null ? `${c.last_lat.toFixed(4)}, ${c.last_lng.toFixed(4)}` : "—");
+}
+function googleMapsUrl(lat, lng) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+}
+function locationCell(c) {
+  const label = escapeHtml(collectorLocation(c));
+  if (c.last_lat == null || c.last_lng == null) return label;
+  return `${label}<a class="map-link" href="${googleMapsUrl(c.last_lat, c.last_lng)}"
+    target="_blank" rel="noopener">Google Maps ↗</a>`;
 }
 
 /* ---------- auth ---------- */
@@ -310,7 +322,7 @@ function renderCollectors(rows) {
       <td><b>${c.total}</b></td>
       <td><span class="presence ${c.online ? "online" : ""}">${c.online ? "Online" : "Offline"}</span></td>
       <td>${fmtDate(c.last_seen || c.last_collection)}</td>
-      <td>${escapeHtml(collectorLocation(c))}</td>
+      <td>${locationCell(c)}</td>
       <td>${fmtDuration(c.app_seconds)}</td>
     </tr>`).join("");
 }
@@ -407,9 +419,12 @@ function switchView(view) {
   $("#view-questionnaire").classList.toggle("hidden", view !== "questionnaire");
   $("#view-payments").classList.toggle("hidden", view !== "payments");
   if (view === "groups") loadGroups();
-  else if (view === "questionnaire") loadQuestions();
-  else if (view === "payments") loadPayments();
-  else setTimeout(() => map && map.invalidateSize(), 100);
+  else {
+    stopGroupLiveRefresh();
+    if (view === "questionnaire") loadQuestions();
+    else if (view === "payments") loadPayments();
+    else setTimeout(() => map && map.invalidateSize(), 100);
+  }
 }
 document.querySelectorAll(".nav-btn").forEach((b) =>
   b.addEventListener("click", () => switchView(b.dataset.view)));
@@ -446,13 +461,15 @@ function renderGroups() {
     </article>`).join("");
 }
 
-async function openGroup(id) {
+async function openGroup(id, manageRefresh = true) {
   selectedGroup = await api(`/api/groups/${id}?period=${currentPeriod()}`);
   renderGroups();
   $("#group-detail-card").classList.remove("hidden");
   $("#group-detail-name").textContent = selectedGroup.name;
   $("#group-detail-summary").textContent =
     `${selectedGroup.members_count} collectors · ${selectedGroup.collections_count} collections · ${selectedGroup.online_count} online`;
+  renderGroupLiveMap(selectedGroup.members);
+  if (manageRefresh) startGroupLiveRefresh();
   const tbody = $("#group-members-table tbody");
   if (!selectedGroup.members.length) {
     tbody.innerHTML = `<tr><td colspan="6" class="empty">This group has no collectors.</td></tr>`;
@@ -464,15 +481,71 @@ async function openGroup(id) {
       <td><b>${escapeHtml(c.name)}</b><br><small>${escapeHtml(c.email)}</small></td>
       <td><b>${c.total}</b></td>
       <td>${fmtDate(c.last_seen)}</td>
-      <td>${escapeHtml(collectorLocation(c))}</td>
+      <td>${locationCell(c)}</td>
       <td>${fmtDuration(c.app_seconds)}</td>
     </tr>`).join("");
 }
 
 function clearGroupDetail() {
+  stopGroupLiveRefresh();
   selectedGroup = null;
   $("#group-detail-card").classList.add("hidden");
   renderGroups();
+}
+
+function initGroupMap() {
+  if (groupMap) return;
+  groupMap = L.map("group-live-map", { scrollWheelZoom: false })
+    .setView([20.5937, 78.9629], 4);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap", maxZoom: 19,
+  }).addTo(groupMap);
+  groupMarkersLayer = L.layerGroup().addTo(groupMap);
+}
+
+function renderGroupLiveMap(members) {
+  initGroupMap();
+  groupMarkersLayer.clearLayers();
+  const markers = [];
+  members.forEach((c) => {
+    if (c.last_lat == null || c.last_lng == null) return;
+    const color = c.online ? "#2ba84a" : "#8c94a5";
+    const marker = L.marker([c.last_lat, c.last_lng], { icon: blueIcon(color) })
+      .bindPopup(`<b>${escapeHtml(c.name)}</b><br>
+        ${c.online ? "Online" : "Offline"} · ${fmtDate(c.last_seen)}<br>
+        <small>${escapeHtml(collectorLocation(c))}</small><br>
+        <a href="${googleMapsUrl(c.last_lat, c.last_lng)}" target="_blank"
+          rel="noopener">Open in Google Maps</a>`);
+    marker.addTo(groupMarkersLayer);
+    markers.push(marker);
+  });
+  setTimeout(() => groupMap.invalidateSize(), 0);
+  if (markers.length) {
+    try {
+      groupMap.fitBounds(L.featureGroup(markers).getBounds().pad(0.25), {
+        maxZoom: 16,
+      });
+    } catch (e) {}
+  }
+  $("#group-live-updated").textContent =
+    `Last refreshed ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+}
+
+function startGroupLiveRefresh() {
+  stopGroupLiveRefresh();
+  groupRefreshTimer = setInterval(async () => {
+    if (!selectedGroup || $("#view-groups").classList.contains("hidden")) return;
+    try {
+      await openGroup(selectedGroup.id, false);
+    } catch (e) {
+      console.error("Live group refresh failed", e);
+    }
+  }, 15000);
+}
+
+function stopGroupLiveRefresh() {
+  if (groupRefreshTimer) clearInterval(groupRefreshTimer);
+  groupRefreshTimer = null;
 }
 
 function groupForm(group) {

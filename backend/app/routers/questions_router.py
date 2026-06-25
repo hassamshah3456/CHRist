@@ -1,4 +1,5 @@
 """Questionnaire management (admin) and delivery (collector)."""
+import hashlib
 import json
 import re
 from typing import List
@@ -56,6 +57,24 @@ def _unique_code(db: Session, base: str, exclude_id: str = "") -> str:
             return code
         i += 1
         code = f"{base}_{i}"
+
+
+def _active_questionnaire(db: Session) -> List[schemas.QuestionOut]:
+    qs = (
+        db.query(models.Question)
+        .filter(models.Question.is_active.is_(True))
+        .order_by(models.Question.order_index)
+        .all()
+    )
+    return [_to_out(q) for q in qs]
+
+
+def _questionnaire_version(questions: List[schemas.QuestionOut]) -> str:
+    payload = [q.model_dump(mode="json") for q in questions]
+    encoded = json.dumps(
+        payload, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 # ---------- Admin CRUD ----------
@@ -161,15 +180,22 @@ def reorder_questions(
 
 
 # ---------- Collector delivery ----------
+@public_router.get("/questionnaire/version")
+def get_questionnaire_version(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Return a small fingerprint so apps only download changed questions."""
+    questions = _active_questionnaire(db)
+    return {
+        "version": _questionnaire_version(questions),
+        "count": len(questions),
+    }
+
+
 @public_router.get("/questionnaire", response_model=List[schemas.QuestionOut])
 def get_questionnaire(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    qs = (
-        db.query(models.Question)
-        .filter(models.Question.is_active.is_(True))
-        .order_by(models.Question.order_index)
-        .all()
-    )
-    return [_to_out(q) for q in qs]
+    return _active_questionnaire(db)
