@@ -36,6 +36,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def no_cache_dashboard(request, call_next):
+    """Keep the admin dashboard from being aggressively cached, so deploys
+    show up on a normal refresh instead of needing a hard refresh."""
+    response = await call_next(request)
+    if request.url.path.startswith("/admin"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
+
+
 app.include_router(auth_router.router)
 app.include_router(collections_router.router)
 app.include_router(stats_router.router)
