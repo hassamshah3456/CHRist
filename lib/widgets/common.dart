@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../i18n/app_localizations.dart';
 import '../theme/app_theme.dart';
 
 /// The app's brand wordmark used on auth screens.
@@ -193,9 +194,9 @@ class YesNoButtons extends StatelessWidget {
 
     return Row(
       children: [
-        btn('Yes', true, AppTheme.success),
+        btn(context.t('yes'), true, AppTheme.success),
         const SizedBox(width: 10),
-        btn('No', false, AppTheme.danger),
+        btn(context.t('no'), false, AppTheme.danger),
       ],
     );
   }

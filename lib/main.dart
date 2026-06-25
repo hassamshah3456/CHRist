@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'config.dart';
+import 'i18n/app_localizations.dart';
+import 'screens/language_picker_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/collection_provider.dart';
 import 'services/api_client.dart';
@@ -25,6 +27,7 @@ void main() {
   final presence = PresenceService(api, location);
   final store = SessionStore();
   final questionnaire = QuestionnaireService(api);
+  final locale = LocaleProvider()..load();
 
   runApp(
     MultiProvider(
@@ -44,15 +47,17 @@ void main() {
         Provider<LocationService>.value(value: location),
         Provider<SyncService>.value(value: sync),
         Provider<QuestionnaireService>.value(value: questionnaire),
+        ChangeNotifierProvider<LocaleProvider>.value(value: locale),
       ],
-      child: UsmleWiseApp(presence: presence),
+      child: UsmleWiseApp(presence: presence, locale: locale),
     ),
   );
 }
 
 class UsmleWiseApp extends StatefulWidget {
   final PresenceService presence;
-  const UsmleWiseApp({super.key, required this.presence});
+  final LocaleProvider locale;
+  const UsmleWiseApp({super.key, required this.presence, required this.locale});
 
   @override
   State<UsmleWiseApp> createState() => _UsmleWiseAppState();
@@ -87,11 +92,29 @@ class _UsmleWiseAppState extends State<UsmleWiseApp>
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppConfig.appName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      home: const SplashScreen(),
+    return AnimatedBuilder(
+      animation: widget.locale,
+      builder: (context, _) => MaterialApp(
+        title: AppConfig.appName,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        // Inject the locale scope so `context.t(...)` works on every route,
+        // and rebuild the whole tree when the language changes.
+        builder: (context, child) =>
+            LocaleScope(provider: widget.locale, child: child!),
+        home: !widget.locale.ready
+            ? const _Blank()
+            : widget.locale.chosen
+                ? const SplashScreen()
+                : const LanguagePickerScreen(),
+      ),
     );
   }
+}
+
+class _Blank extends StatelessWidget {
+  const _Blank();
+  @override
+  Widget build(BuildContext context) =>
+      const Scaffold(body: Center(child: CircularProgressIndicator()));
 }

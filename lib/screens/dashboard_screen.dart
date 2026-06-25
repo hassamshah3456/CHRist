@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/collection_provider.dart';
 import '../services/location_service.dart';
@@ -100,14 +101,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Row(
                 children: [
                   _StatTile(
-                    label: "Today's entries",
+                    label: context.t('todays_entries'),
                     value: cp.stats.today,
                     icon: Icons.today_rounded,
                     color: AppTheme.primary,
                   ),
                   const SizedBox(width: 14),
                   _StatTile(
-                    label: 'Total to be paid',
+                    label: context.t('total_to_be_paid'),
                     valueText: _dueText,
                     icon: Icons.payments_rounded,
                     color: AppTheme.success,
@@ -120,13 +121,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   MaterialPageRoute(builder: (_) => const InstructionsScreen()),
                 ),
                 icon: const Icon(Icons.menu_book_outlined),
-                label: const Text('Instructions'),
+                label: Text(context.t('instructions')),
               ),
               const SizedBox(height: 12),
               ElevatedButton.icon(
                 onPressed: _startCollecting,
                 icon: const Icon(Icons.add_location_alt_rounded),
-                label: const Text('Start Collecting'),
+                label: Text(context.t('start_collecting')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -134,7 +135,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   MaterialPageRoute(builder: (_) => const CollectionsScreen()),
                 ),
                 icon: const Icon(Icons.history_rounded),
-                label: const Text('See past collections'),
+                label: Text(context.t('past_collections')),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
@@ -142,7 +143,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   MaterialPageRoute(builder: (_) => const PaymentScreen()),
                 ),
                 icon: const Icon(Icons.payments_outlined),
-                label: const Text('My payments'),
+                label: Text(context.t('my_payments')),
               ),
             ],
           ),

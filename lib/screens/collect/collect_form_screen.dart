@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../i18n/app_localizations.dart';
 import '../../models/answer.dart';
 import '../../models/question.dart';
 import '../../providers/auth_provider.dart';
@@ -295,7 +296,7 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('New Collection')),
+      appBar: AppBar(title: Text(context.t('new_collection'))),
       body: SafeArea(
         child: _loading
             ? const Center(child: CircularProgressIndicator())
@@ -305,14 +306,15 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       children: [
-                        _section('Child age'),
+                        _section(context.t('child_age')),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(child: _ageField(_age, 'Years')),
+                            Expanded(child: _ageField(_age, context.t('years'))),
                             const SizedBox(width: 12),
                             Expanded(
-                                child: _ageField(_ageMonths, 'Months (0–11)')),
+                                child: _ageField(
+                                    _ageMonths, context.t('months_0_11'))),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -329,27 +331,34 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
                           ],
                         ),
                         const SizedBox(height: 22),
-                        _section('Who is carrying the child'),
-                        OptionChips(
-                          options: const ['Father', 'Mother', 'Others'],
-                          value: _carrying,
-                          onChanged: (v) => setState(() => _carrying = v),
+                        _section(context.t('who_carrying')),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: const ['Father', 'Mother', 'Others']
+                              .map((opt) => ChoiceChip(
+                                    label: Text(context.t(opt.toLowerCase())),
+                                    selected: _carrying == opt,
+                                    onSelected: (_) =>
+                                        setState(() => _carrying = opt),
+                                  ))
+                              .toList(),
                         ),
                         if (_carrying == 'Others') ...[
                           const SizedBox(height: 12),
                           TextField(
                             controller: _carryingOther,
-                            decoration: const InputDecoration(
-                              labelText: 'Specify',
-                              prefixIcon: Icon(Icons.edit_outlined),
+                            decoration: InputDecoration(
+                              labelText: context.t('specify'),
+                              prefixIcon: const Icon(Icons.edit_outlined),
                             ),
                           ),
                         ],
                         const SizedBox(height: 22),
-                        _section('Screening'),
+                        _section(context.t('screening')),
                         ..._questions.map(_questionTile),
                         const SizedBox(height: 22),
-                        _section('Medical record (optional)'),
+                        _section(context.t('medical_optional')),
                         if (_medicalPhoto != null) ...[
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
@@ -364,16 +373,15 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
                           onPressed: () => _pickPhoto(),
                           icon: const Icon(Icons.photo_camera_rounded),
                           label: Text(_medicalPhoto == null
-                              ? 'Add medical record photo (optional)'
-                              : 'Replace photo'),
+                              ? context.t('add_medical_photo')
+                              : context.t('replace_photo')),
                         ),
                         const SizedBox(height: 22),
-                        _section("Child caregiver's phone"
-                            '${_triplePositive ? ' (required)' : ' (optional)'}'),
-                        const Text(
-                          'Phone number of the child’s caregiver. Required for '
-                          'triple-positive cases.',
-                          style: TextStyle(
+                        _section('${context.t('caregiver_phone')} '
+                            '(${_triplePositive ? context.t('required') : context.t('optional')})'),
+                        Text(
+                          context.t('caregiver_hint'),
+                          style: const TextStyle(
                               color: AppTheme.textMuted, fontSize: 13),
                         ),
                         const SizedBox(height: 8),
@@ -399,7 +407,8 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
                               child: CircularProgressIndicator(
                                   strokeWidth: 2.2, color: Colors.white))
                           : const Icon(Icons.check_rounded),
-                      label: Text(_saving ? 'Saving…' : 'Save Collection'),
+                      label: Text(
+                          _saving ? context.t('saving') : context.t('save_collection')),
                     ),
                   ),
                 ],
