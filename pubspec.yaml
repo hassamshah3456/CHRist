@@ -25,6 +25,12 @@ dependencies:
 
   # Location
   geolocator: ^12.0.0
+  # Pin below 4.6.0: geolocator_android 4.6.x's android/build.gradle uses
+  # `compileSdk flutter.compileSdkVersion` inside the android {} closure, which
+  # Gradle resolves against the android extension and fails with
+  # "unknown property 'flutter'" on the standard `flutter create` project.
+  # 4.5.5 sets compileSdk itself and is compatible with geolocator 12 (^4.3.0).
+  geolocator_android: 4.5.5
   geocoding: ^3.0.0
 
   # Connectivity (drives auto-sync when internet returns)
