@@ -28,7 +28,39 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 Interactive API docs: http://localhost:8000/docs
 
 By default it uses a local **SQLite** file (`usmlewise.db`). For production set
-`DATABASE_URL` to a Postgres URL and a strong `SECRET_KEY` (see `.env.example`).
+`DATABASE_URL` (MySQL or Postgres) and a strong `SECRET_KEY` (see `.env.example`).
+
+### Connecting to your remote MySQL database
+
+> **Security:** database credentials live ONLY on the server as the
+> `DATABASE_URL` environment variable. They are **never** put in the app/APK
+> (an APK can be decompiled) and **never** committed to git. The phone only
+> talks to the API over HTTPS; only the server talks to MySQL.
+
+1. In your MySQL database, create the schema + a dedicated user:
+   ```sql
+   CREATE DATABASE usmlewise CHARACTER SET utf8mb4;
+   CREATE USER 'usmlewise_app'@'%' IDENTIFIED BY 'a-strong-password';
+   GRANT ALL PRIVILEGES ON usmlewise.* TO 'usmlewise_app'@'%';
+   FLUSH PRIVILEGES;
+   ```
+   (`'%'` lets the app server connect remotely; restrict to the server's IP if
+   you can. Make sure the host's firewall/security-group allows port 3306 from
+   the API server, **not** from the whole internet.)
+
+2. Set the connection string on the **server** (not in the app):
+   ```
+   DATABASE_URL=mysql+pymysql://usmlewise_app:a-strong-password@YOUR_DB_HOST:3306/usmlewise
+   ```
+   - Locally: put it in `backend/.env` (gitignored).
+   - On Render/Railway/etc.: add it as an Environment Variable in the dashboard.
+   - If your provider requires TLS, append `?ssl_ca=/etc/ssl/certs/ca-certificates.crt`.
+
+3. Start the API. Tables (`users`, `collections`) are created automatically on
+   first boot. Done — the app now stores everything in your MySQL DB.
+
+The Python MySQL driver (`PyMySQL`) is already in `requirements.txt`, so no
+extra install is needed.
 
 ### Deploy (so the phone can reach it)
 - **Render** (easiest): push this repo, then *New → Blueprint* using

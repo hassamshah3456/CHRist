@@ -11,8 +11,13 @@ load_dotenv()
 
 
 class Settings:
-    # Database. Default: local SQLite file. For Postgres use e.g.
-    #   postgresql+psycopg2://user:pass@host:5432/dbname
+    # Database connection string. Default: local SQLite file.
+    # Remote MySQL:
+    #   mysql+pymysql://USER:PASSWORD@HOST:3306/DBNAME
+    #   mysql+pymysql://USER:PASSWORD@HOST:3306/DBNAME?ssl_ca=/path/ca.pem  (TLS)
+    # Postgres:
+    #   postgresql+psycopg2://USER:PASSWORD@HOST:5432/DBNAME
+    # IMPORTANT: set this via a server environment variable, never in code/git.
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./usmlewise.db")
 
     # JWT signing secret. MUST be overridden in production.
