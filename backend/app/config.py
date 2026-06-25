@@ -4,10 +4,13 @@ Defaults are dev-friendly (SQLite, throwaway secret). In production set
 DATABASE_URL (e.g. a Postgres URL) and SECRET_KEY via real environment vars.
 """
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load backend/.env explicitly (robust regardless of CWD or how Python is
+# invoked). config.py lives in backend/app/, so the .env is one level up.
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 
 class Settings:
