@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -15,6 +17,9 @@ class CapturedLocation {
 /// (sign-up, each collection). Designed to never throw to the caller — if
 /// location can't be obtained it returns an empty [CapturedLocation].
 class LocationService {
+  static const double _targetAccuracyMeters = 35;
+  static const double _heartbeatTargetAccuracyMeters = 100;
+
   /// Ensures services + permission are on. Returns true if we can read a fix.
   Future<bool> ensurePermission() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -42,16 +47,51 @@ class LocationService {
 
   Future<void> openAppSettings() => Geolocator.openAppSettings();
 
+  Future<Position> _captureBestPosition({required bool precise}) async {
+    final targetAccuracy =
+        precise ? _targetAccuracyMeters : _heartbeatTargetAccuracyMeters;
+    final first = await Geolocator.getCurrentPosition(
+      desiredAccuracy: precise
+          ? LocationAccuracy.bestForNavigation
+          : LocationAccuracy.high,
+      timeLimit: precise
+          ? const Duration(seconds: 20)
+          : const Duration(seconds: 8),
+    );
+    if (first.accuracy <= targetAccuracy || !precise) return first;
+
+    Position best = first;
+    StreamSubscription<Position>? sub;
+    final completer = Completer<Position>();
+    Timer? timeout;
+
+    void finish() {
+      if (!completer.isCompleted) completer.complete(best);
+      timeout?.cancel();
+      sub?.cancel();
+    }
+
+    timeout = Timer(const Duration(seconds: 12), finish);
+    sub = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 0,
+      ),
+    ).listen((pos) {
+      if (pos.accuracy < best.accuracy) best = pos;
+      if (best.accuracy <= targetAccuracy) finish();
+    }, onError: (_) => finish());
+
+    return completer.future;
+  }
+
   /// Captures the current position and reverse-geocodes it. Never throws.
   Future<CapturedLocation> capture({bool includeAddress = true}) async {
     try {
       final ok = await ensurePermission();
       if (!ok) return const CapturedLocation();
 
-      final pos = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 15),
-      );
+      final pos = await _captureBestPosition(precise: includeAddress);
 
       String? address;
       if (includeAddress) {
