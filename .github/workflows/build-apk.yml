@@ -33,9 +33,11 @@ jobs:
       - name: Generate platform files
         run: flutter create --org com.usmlewise --project-name usmlewise_christ --platforms=android .
 
-      # Overlay our manifest that declares location + internet permissions.
-      - name: Apply Android permissions manifest
-        run: cp android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+      # Overlay our Android app label, launcher icon, and permissions.
+      - name: Apply Android overrides
+        run: |
+          cp android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          cp -R android_overrides/res/* android/app/src/main/res/
 
       - name: Get dependencies
         run: flutter pub get

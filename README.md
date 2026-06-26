@@ -10,7 +10,7 @@ reconnect.
 datcollectionapp/
 ├── lib/                  # Flutter app
 ├── backend/              # FastAPI + SQLAlchemy server
-├── android_overrides/    # AndroidManifest with location/internet permissions
+├── android_overrides/    # Android label, launcher icon, and permissions
 └── .github/workflows/    # Cloud APK build (GitHub Actions)
 ```
 
@@ -136,7 +136,7 @@ A GitHub Actions workflow builds a release APK in the cloud:
    `app-release.apk` on the device (enable "Install unknown apps").
 
 The workflow runs `flutter create` to generate the Android project, applies
-`android_overrides/AndroidManifest.xml` (location + internet permissions), then
+`android_overrides/` (CRIST label, launcher icon, and permissions), then
 `flutter build apk --release`. The release build is signed with the standard
 debug key, so it installs directly — fine for distributing test APKs. For a
 Play Store release you'd add a proper upload keystore.
@@ -146,6 +146,7 @@ If you have Flutter installed:
 ```bash
 flutter create --org com.usmlewise --project-name usmlewise_christ --platforms=android,ios .
 cp android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+cp -R android_overrides/res/* android/app/src/main/res/
 flutter pub get
 flutter build apk --release --dart-define=API_BASE_URL=https://your-server.com
 ```

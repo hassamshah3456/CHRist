@@ -13,5 +13,5 @@ class AppConfig {
     defaultValue: 'http://10.0.2.2:8000',
   );
 
-  static const String appName = 'UsmleWise CRIST';
+  static const String appName = 'CRIST';
 }
