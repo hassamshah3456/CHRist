@@ -128,13 +128,18 @@ async def upload_photo(
 
 @router.get("/instructions", response_model=schemas.Instructions)
 def collector_instructions(
+    lang: str = Query("en"),
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    """The admin-authored instructions, shown in the app."""
-    return schemas.Instructions(
-        html=payments.get_setting(db, "instructions_html")
-    )
+    """The admin-authored instructions in the requested language (English
+    fallback if that language is empty)."""
+    keys = {"en": "instructions_html", "hi": "instructions_html_hi",
+            "kn": "instructions_html_kn"}
+    html = payments.get_setting(db, keys.get(lang, keys["en"]))
+    if not html:
+        html = payments.get_setting(db, keys["en"])
+    return schemas.Instructions(html=html)
 
 
 @router.get("/payment", response_model=schemas.MyPayment)

@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
 </head>
 <body>
 
@@ -267,6 +267,11 @@
           </div>
           <button class="btn-primary" id="save-instructions-btn">Save</button>
         </div>
+        <div class="rt-langs">
+          <button type="button" data-lang="en" class="active">English</button>
+          <button type="button" data-lang="hi">हिन्दी</button>
+          <button type="button" data-lang="kn">ಕನ್ನಡ</button>
+        </div>
         <div class="rt-toolbar">
           <button type="button" data-cmd="bold"><b>B</b></button>
           <button type="button" data-cmd="italic"><i>I</i></button>
@@ -274,7 +279,9 @@
           <button type="button" data-cmd="insertOrderedList">1. List</button>
           <button type="button" data-cmd="formatBlock" data-arg="h3">H</button>
         </div>
-        <div id="instructions-editor" class="rt-editor" contenteditable="true"></div>
+        <div id="instr-en" class="rt-editor" contenteditable="true"></div>
+        <div id="instr-hi" class="rt-editor hidden" contenteditable="true"></div>
+        <div id="instr-kn" class="rt-editor hidden" contenteditable="true"></div>
         <span id="instructions-saved" class="rates-saved"></span>
       </section>
     </div>
@@ -288,6 +295,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=8"></script>
+<script src="app.js?v=9"></script>
 </body>
 </html>

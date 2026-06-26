@@ -429,31 +429,50 @@ function switchView(view) {
   }
 }
 
-/* ---------- instructions ---------- */
+/* ---------- instructions (per language) ---------- */
+let _instrLang = "en";
+function _instrEditor(lang) { return $("#instr-" + lang); }
+
 async function loadInstructions() {
   try {
     const data = await api("/api/instructions");
-    $("#instructions-editor").innerHTML = (data && data.html) || "";
+    ["en", "hi", "kn"].forEach((l) => {
+      _instrEditor(l).innerHTML = (data && data[l]) || "";
+    });
   } catch (e) { alert(e.message); }
 }
 
 async function saveInstructions() {
-  const html = $("#instructions-editor").innerHTML;
+  const body = {
+    en: _instrEditor("en").innerHTML,
+    hi: _instrEditor("hi").innerHTML,
+    kn: _instrEditor("kn").innerHTML,
+  };
   try {
     await api("/api/instructions", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ html }),
+      body: JSON.stringify(body),
     });
     $("#instructions-saved").textContent = "Saved ✓";
     setTimeout(() => { $("#instructions-saved").textContent = ""; }, 2000);
   } catch (e) { alert(e.message); }
 }
 
+document.querySelectorAll(".rt-langs button").forEach((b) =>
+  b.addEventListener("click", () => {
+    _instrLang = b.dataset.lang;
+    document.querySelectorAll(".rt-langs button").forEach((x) =>
+      x.classList.toggle("active", x === b));
+    ["en", "hi", "kn"].forEach((l) =>
+      _instrEditor(l).classList.toggle("hidden", l !== _instrLang));
+    _instrEditor(_instrLang).focus();
+  }));
+
 document.querySelectorAll(".rt-toolbar button").forEach((b) =>
   b.addEventListener("click", (e) => {
     e.preventDefault();
-    $("#instructions-editor").focus();
+    _instrEditor(_instrLang).focus();
     document.execCommand(b.dataset.cmd, false, b.dataset.arg || null);
   }));
 const _saveInstrBtn = $("#save-instructions-btn");
@@ -796,6 +815,12 @@ function questionForm(q) {
       <label class="check"><input type="checkbox" id="q-photo" ${q.photo_on_yes ? "checked" : ""}/> Capture a photo when answered “Yes” (e.g. OPD card)</label>
       <label class="check"><input type="checkbox" id="q-note" ${q.note_on_yes ? "checked" : ""}/> Ask for a text note when answered “Yes”</label>
     </div>
+    <details class="tr-block">
+      <summary>Translations (Hindi / Kannada)</summary>
+      ${_trFields("hi", "हिन्दी (Hindi)", q)}
+      ${_trFields("kn", "ಕನ್ನಡ (Kannada)", q)}
+      <p class="hint">Leave blank to fall back to English. For choice options, put one per line in the same order as the English options.</p>
+    </details>
     <label class="check"><input type="checkbox" id="q-required" ${q.required ? "checked" : ""}/> Required</label>
     <label class="check"><input type="checkbox" id="q-secondary" ${q.secondary_aim ? "checked" : ""}/> Secondary aim</label>
     <label class="check"><input type="checkbox" id="q-active" ${q.is_active ? "checked" : ""}/> Active (shown in the app)</label>
@@ -805,13 +830,41 @@ function questionForm(q) {
     </div>`;
 }
 
+function _trFields(lang, label, q) {
+  const t = (q.translations && q.translations[lang]) || {};
+  const opts = Array.isArray(t.options) ? t.options.join("\n") : "";
+  return `
+    <div class="tr-lang">
+      <strong>${label}</strong>
+      <input type="text" id="q-title-${lang}" placeholder="Question text" value="${escapeHtml(t.title || "")}" />
+      <textarea id="q-help-${lang}" placeholder="Help text (optional)">${escapeHtml(t.help_text || "")}</textarea>
+      <textarea id="q-options-${lang}" class="${["single_choice","multi_choice"].includes(q.qtype) ? "" : "hidden"}" placeholder="Options (one per line)">${escapeHtml(opts)}</textarea>
+    </div>`;
+}
+
+function _trCollect(lang, qtype) {
+  const title = $("#q-title-" + lang).value.trim();
+  const help = $("#q-help-" + lang).value.trim();
+  const options = ["single_choice", "multi_choice"].includes(qtype)
+    ? $("#q-options-" + lang).value.split("\n").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const out = {};
+  if (title) out.title = title;
+  if (help) out.help_text = help;
+  if (options.length) out.options = options;
+  return Object.keys(out).length ? out : null;
+}
+
 function openQuestionModal(q) {
   openModal(questionForm(q));
   const typeSel = $("#q-type");
   typeSel.addEventListener("change", () => {
     const t = typeSel.value;
-    $("#q-options-wrap").classList.toggle("hidden", !["single_choice", "multi_choice"].includes(t));
+    const isChoice = ["single_choice", "multi_choice"].includes(t);
+    $("#q-options-wrap").classList.toggle("hidden", !isChoice);
     $("#q-yesno-wrap").classList.toggle("hidden", t !== "yes_no");
+    ["hi", "kn"].forEach((l) =>
+      $("#q-options-" + l).classList.toggle("hidden", !isChoice));
   });
   $("#q-cancel").addEventListener("click", closeModal);
   $("#q-save").addEventListener("click", () => saveQuestion(q && q.id));
@@ -824,11 +877,17 @@ async function saveQuestion(id) {
   const options = ["single_choice", "multi_choice"].includes(qtype)
     ? $("#q-options").value.split("\n").map((s) => s.trim()).filter(Boolean)
     : [];
+  const translations = {};
+  const hi = _trCollect("hi", qtype);
+  const kn = _trCollect("kn", qtype);
+  if (hi) translations.hi = hi;
+  if (kn) translations.kn = kn;
   const body = {
     title,
     help_text: $("#q-help").value.trim() || null,
     qtype,
     options,
+    translations,
     required: $("#q-required").checked,
     secondary_aim: $("#q-secondary").checked,
     photo_on_yes: qtype === "yes_no" && $("#q-photo").checked,

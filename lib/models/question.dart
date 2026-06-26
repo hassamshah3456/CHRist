@@ -12,6 +12,8 @@ class Question {
   final bool secondaryAim;
   final bool photoOnYes;
   final bool noteOnYes;
+  // Per-language overrides: {"hi": {"title":..,"help_text":..,"options":[..]}}
+  final Map<String, dynamic> translations;
 
   const Question({
     required this.id,
@@ -25,7 +27,32 @@ class Question {
     this.secondaryAim = false,
     this.photoOnYes = false,
     this.noteOnYes = false,
+    this.translations = const {},
   });
+
+  Map<String, dynamic>? _tr(String lang) {
+    final t = translations[lang];
+    return t is Map<String, dynamic> ? t : (t is Map ? Map<String, dynamic>.from(t) : null);
+  }
+
+  /// Title in [lang], falling back to the base (English) title.
+  String localizedTitle(String lang) {
+    final v = _tr(lang)?['title'];
+    return (v is String && v.trim().isNotEmpty) ? v : title;
+  }
+
+  String? localizedHelp(String lang) {
+    final v = _tr(lang)?['help_text'];
+    return (v is String && v.trim().isNotEmpty) ? v : helpText;
+  }
+
+  List<String> localizedOptions(String lang) {
+    final v = _tr(lang)?['options'];
+    if (v is List && v.length == options.length && v.isNotEmpty) {
+      return v.map((e) => e.toString()).toList();
+    }
+    return options;
+  }
 
   factory Question.fromApiJson(Map<String, dynamic> j) => Question(
         id: j['id'] as String,
@@ -40,6 +67,7 @@ class Question {
         secondaryAim: j['secondary_aim'] as bool? ?? false,
         photoOnYes: j['photo_on_yes'] as bool? ?? false,
         noteOnYes: j['note_on_yes'] as bool? ?? false,
+        translations: (j['translations'] as Map?)?.cast<String, dynamic>() ?? const {},
       );
 
   Map<String, dynamic> toJson() => {
@@ -54,5 +82,6 @@ class Question {
         'secondary_aim': secondaryAim,
         'photo_on_yes': photoOnYes,
         'note_on_yes': noteOnYes,
+        'translations': translations,
       };
 }

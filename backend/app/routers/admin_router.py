@@ -493,24 +493,35 @@ def get_photo(
 
 
 # ---------- Instructions ----------
-_INSTRUCTIONS_KEY = "instructions_html"
+# Per-language keys; "en" keeps the original key for backward compatibility.
+_INSTRUCTIONS_KEYS = {
+    "en": "instructions_html",
+    "hi": "instructions_html_hi",
+    "kn": "instructions_html_kn",
+}
 
 
-@router.get("/instructions", response_model=schemas.Instructions)
+@router.get("/instructions", response_model=schemas.InstructionsMulti)
 def get_instructions(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    return schemas.Instructions(html=payments.get_setting(db, _INSTRUCTIONS_KEY))
+    return schemas.InstructionsMulti(
+        en=payments.get_setting(db, _INSTRUCTIONS_KEYS["en"]),
+        hi=payments.get_setting(db, _INSTRUCTIONS_KEYS["hi"]),
+        kn=payments.get_setting(db, _INSTRUCTIONS_KEYS["kn"]),
+    )
 
 
-@router.put("/instructions", response_model=schemas.Instructions)
+@router.put("/instructions", response_model=schemas.InstructionsMulti)
 def update_instructions(
-    body: schemas.Instructions,
+    body: schemas.InstructionsMulti,
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    payments.set_setting(db, _INSTRUCTIONS_KEY, body.html)
+    payments.set_setting(db, _INSTRUCTIONS_KEYS["en"], body.en)
+    payments.set_setting(db, _INSTRUCTIONS_KEYS["hi"], body.hi)
+    payments.set_setting(db, _INSTRUCTIONS_KEYS["kn"], body.kn)
     return body
 
 

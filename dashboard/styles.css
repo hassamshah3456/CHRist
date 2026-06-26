@@ -328,3 +328,19 @@ tr.grouped td:first-child { border-left: 3px solid var(--primary); }
 .rt-editor:focus { border-color: var(--primary); }
 .rt-editor h3 { margin: 8px 0; }
 .rt-editor ul, .rt-editor ol { padding-left: 22px; }
+
+/* ---------- Instructions language tabs + question translations ---------- */
+.rt-langs { display: flex; gap: 6px; margin-top: 12px; }
+.rt-langs button {
+  border: 1px solid var(--border); background: #fff; border-radius: 8px;
+  padding: 6px 14px; cursor: pointer; font-size: 14px;
+}
+.rt-langs button.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.tr-block { margin: 12px 0; border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+.tr-block summary { cursor: pointer; font-weight: 700; color: var(--primary); }
+.tr-lang { margin-top: 10px; }
+.tr-lang strong { display: block; margin-bottom: 6px; color: var(--muted); font-size: 13px; }
+.tr-lang input, .tr-lang textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; margin-bottom: 6px; font-size: 14px;
+}

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_localizations.dart';
 import '../providers/collection_provider.dart';
 import '../theme/app_theme.dart';
 
@@ -30,7 +31,8 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
     });
     try {
       final api = context.read<CollectionProvider>().api;
-      final res = await api.get('/collections/instructions');
+      final lang = context.read<LocaleProvider>().code;
+      final res = await api.get('/collections/instructions?lang=$lang');
       final html = ((res as Map)['html'] ?? '').toString();
       if (!mounted) return;
       setState(() {
@@ -67,7 +69,7 @@ class _InstructionsScreenState extends State<InstructionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Instructions')),
+      appBar: AppBar(title: Text(context.t('instructions'))),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,

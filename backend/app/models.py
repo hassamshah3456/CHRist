@@ -137,6 +137,8 @@ class Question(Base):
     # yes_no | single_choice | multi_choice | number | text
     qtype = Column(String(20), nullable=False, default="yes_no")
     options_json = Column(Text, nullable=True)  # JSON array for choice types
+    # Per-language overrides as JSON: {"hi": {...}, "kn": {...}}.
+    translations_json = Column(Text, nullable=True)
 
     required = Column(Boolean, nullable=False, default=True)
     secondary_aim = Column(Boolean, nullable=False, default=False)

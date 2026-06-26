@@ -94,11 +94,14 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
     super.dispose();
   }
 
-  /// Triple-positive = 3 or more "secondary aim" yes/no questions answered Yes.
+  String get _lang => context.read<LocaleProvider>().code;
+
+  /// Triple-positive (and quadruple+): 3 or more of the admin-loaded screening
+  /// yes/no questions answered "Yes" → caregiver phone becomes required.
   bool get _triplePositive {
     var yes = 0;
     for (final q in _questions) {
-      if (q.secondaryAim && q.qtype == 'yes_no' && _yesNo[q.id] == true) yes++;
+      if (q.qtype == 'yes_no' && _yesNo[q.id] == true) yes++;
     }
     return yes >= 3;
   }
@@ -464,7 +467,7 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text(q.title,
+                  child: Text(q.localizedTitle(_lang),
                       style: const TextStyle(
                           fontWeight: FontWeight.w700, fontSize: 15)),
                 ),
@@ -484,9 +487,9 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
                   ),
               ],
             ),
-            if (q.helpText != null && q.helpText!.isNotEmpty) ...[
+            if ((q.localizedHelp(_lang) ?? '').isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(q.helpText!,
+              Text(q.localizedHelp(_lang)!,
                   style:
                       const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
             ],
@@ -503,32 +506,38 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
       case 'yes_no':
         return _yesNoInput(q);
       case 'single_choice':
+        final opts = q.options;
+        final lopts = q.localizedOptions(_lang);
         return Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: q.options
-              .map((o) => ChoiceChip(
-                    label: Text(o),
-                    selected: _single[q.id] == o,
-                    onSelected: (_) => setState(() => _single[q.id] = o),
-                  ))
-              .toList(),
+          children: [
+            for (var i = 0; i < opts.length; i++)
+              ChoiceChip(
+                label: Text(lopts[i]),
+                selected: _single[q.id] == opts[i],
+                onSelected: (_) => setState(() => _single[q.id] = opts[i]),
+              ),
+          ],
         );
       case 'multi_choice':
+        final opts = q.options;
+        final lopts = q.localizedOptions(_lang);
+        final set = _multi[q.id] ?? <String>{};
         return Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: q.options.map((o) {
-            final set = _multi[q.id] ?? <String>{};
-            return FilterChip(
-              label: Text(o),
-              selected: set.contains(o),
-              onSelected: (sel) => setState(() {
-                sel ? set.add(o) : set.remove(o);
-                _multi[q.id] = set;
-              }),
-            );
-          }).toList(),
+          children: [
+            for (var i = 0; i < opts.length; i++)
+              FilterChip(
+                label: Text(lopts[i]),
+                selected: set.contains(opts[i]),
+                onSelected: (sel) => setState(() {
+                  sel ? set.add(opts[i]) : set.remove(opts[i]);
+                  _multi[q.id] = set;
+                }),
+              ),
+          ],
         );
       case 'number':
         return TextField(

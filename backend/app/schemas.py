@@ -1,6 +1,6 @@
 """Pydantic request/response schemas."""
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -73,6 +73,9 @@ class QuestionIn(BaseModel):
     note_on_yes: bool = False
     is_active: bool = True
     order_index: Optional[int] = None
+    # Per-language overrides, e.g. {"hi": {"title": "...", "help_text": "...",
+    # "options": [...]}, "kn": {...}}. English uses the base fields above.
+    translations: Dict[str, Any] = {}
 
 
 class QuestionOut(BaseModel):
@@ -88,6 +91,7 @@ class QuestionOut(BaseModel):
     photo_on_yes: bool
     note_on_yes: bool
     is_active: bool
+    translations: Dict[str, Any] = {}
 
 
 class ReorderRequest(BaseModel):
@@ -286,8 +290,15 @@ class AdminCollectionOut(BaseModel):
 
 # ---------- Payments ----------
 class Instructions(BaseModel):
-    """Admin-authored collector instructions (rich text / HTML)."""
+    """Single-language instructions returned to the app."""
     html: str = ""
+
+
+class InstructionsMulti(BaseModel):
+    """Per-language instructions, edited in the admin dashboard."""
+    en: str = ""
+    hi: str = ""
+    kn: str = ""
 
 
 class PaymentConfig(BaseModel):

@@ -25,6 +25,12 @@ def _to_out(q: models.Question) -> schemas.QuestionOut:
             options = json.loads(q.options_json)
         except Exception:
             options = []
+    translations = {}
+    if getattr(q, "translations_json", None):
+        try:
+            translations = json.loads(q.translations_json)
+        except Exception:
+            translations = {}
     return schemas.QuestionOut(
         id=q.id,
         code=q.code,
@@ -38,6 +44,7 @@ def _to_out(q: models.Question) -> schemas.QuestionOut:
         photo_on_yes=q.photo_on_yes,
         note_on_yes=q.note_on_yes,
         is_active=q.is_active,
+        translations=translations,
     )
 
 
@@ -108,6 +115,8 @@ def create_question(
         help_text=payload.help_text,
         qtype=payload.qtype,
         options_json=json.dumps(payload.options) if payload.options else None,
+        translations_json=json.dumps(payload.translations)
+        if payload.translations else None,
         required=payload.required,
         secondary_aim=payload.secondary_aim,
         photo_on_yes=payload.photo_on_yes,
@@ -139,6 +148,9 @@ def update_question(
     q.help_text = payload.help_text
     q.qtype = payload.qtype
     q.options_json = json.dumps(payload.options) if payload.options else None
+    q.translations_json = (
+        json.dumps(payload.translations) if payload.translations else None
+    )
     q.required = payload.required
     q.secondary_aim = payload.secondary_aim
     q.photo_on_yes = payload.photo_on_yes
