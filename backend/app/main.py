@@ -77,6 +77,45 @@ def _ensure_columns():
 
 _ensure_columns()
 
+
+def _widen_settings_value():
+    """instructions HTML exceeds VARCHAR(255); widen settings.value to TEXT."""
+    dialect = engine.dialect.name
+    try:
+        with engine.begin() as conn:
+            if dialect == "mysql":
+                conn.execute(text(
+                    "ALTER TABLE settings MODIFY COLUMN value TEXT NULL"
+                ))
+            elif dialect == "postgresql":
+                conn.execute(text(
+                    "ALTER TABLE settings ALTER COLUMN value TYPE TEXT"
+                ))
+    except Exception:
+        pass
+
+
+def _relax_user_email_nullable():
+    """Collectors no longer require email; admins still use it."""
+    dialect = engine.dialect.name
+    try:
+        with engine.begin() as conn:
+            if dialect == "mysql":
+                conn.execute(text(
+                    "ALTER TABLE users MODIFY COLUMN email "
+                    "VARCHAR(255) NULL"
+                ))
+            elif dialect == "postgresql":
+                conn.execute(text(
+                    "ALTER TABLE users ALTER COLUMN email DROP NOT NULL"
+                ))
+    except Exception:
+        pass
+
+
+_widen_settings_value()
+_relax_user_email_nullable()
+
 try:
     with engine.begin() as conn:
         conn.execute(text(

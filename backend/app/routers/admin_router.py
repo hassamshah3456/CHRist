@@ -106,6 +106,7 @@ def _collector_summaries(
         schemas.CollectorSummary(
             id=u.id,
             name=u.name,
+            phone=u.phone,
             email=u.email,
             upi_address=u.upi_address,
             upi_name=u.upi_name,
@@ -259,6 +260,7 @@ def admin_collections(
             user_id=c.user_id,
             collector_name=c.collector_name,
             collector_email=u.email,
+            collector_phone=u.phone,
             verbal_consent=c.verbal_consent,
             phone=c.phone,
             child_name=c.child_name,
@@ -436,7 +438,7 @@ def export_csv(
     answer_codes = sorted(code_title.keys(), key=lambda c: order_map.get(c, 9999))
 
     base_cols = [
-        "id", "collected_at", "collector_name", "collector_email",
+        "id", "collected_at", "collector_name", "collector_phone", "collector_email",
         "phone", "verbal_consent", "child_name", "child_age", "child_age_months", "child_sex", "responder",
         "responder_other", "medical_record", "medical_record_photo",
         "card_submitted", "card_approved", "vaccines",
@@ -452,7 +454,8 @@ def export_csv(
             c.id,
             c.collected_at.isoformat() if c.collected_at else "",
             c.collector_name,
-            u.email,
+            u.phone or "",
+            u.email or "",
             c.phone or "",
             "yes" if c.verbal_consent else "no",
             c.child_name or "",
@@ -525,9 +528,11 @@ def update_instructions(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    payments.set_setting(db, _INSTRUCTIONS_KEYS["en"], body.en)
-    payments.set_setting(db, _INSTRUCTIONS_KEYS["hi"], body.hi)
-    payments.set_setting(db, _INSTRUCTIONS_KEYS["kn"], body.kn)
+    payments.set_settings(db, {
+        _INSTRUCTIONS_KEYS["en"]: body.en or "",
+        _INSTRUCTIONS_KEYS["hi"]: body.hi or "",
+        _INSTRUCTIONS_KEYS["kn"]: body.kn or "",
+    })
     return body
 
 
@@ -554,7 +559,7 @@ def payments_overview(
         due = payments.collector_due(db, u, cfg)
         last = payments.last_payout(db, u.id)
         rows.append(schemas.CollectorPayment(
-            id=u.id, name=u.name, email=u.email,
+            id=u.id, name=u.name, phone=u.phone, email=u.email,
             upi_address=u.upi_address, upi_name=u.upi_name,
             total_entries=due["total_entries"],
             unpaid_entries=due["unpaid_entries"],
@@ -605,6 +610,7 @@ def card_approvals(
             user_id=c.user_id,
             collector_name=c.collector_name,
             collector_email=u.email,
+            collector_phone=u.phone,
             verbal_consent=c.verbal_consent,
             phone=c.phone,
             child_name=c.child_name,
@@ -655,6 +661,7 @@ def approve_card_entry(
         user_id=c.user_id,
         collector_name=c.collector_name,
         collector_email=u.email,
+        collector_phone=u.phone,
         verbal_consent=c.verbal_consent,
         phone=c.phone,
         child_name=c.child_name,

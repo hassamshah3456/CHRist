@@ -17,13 +17,13 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _form = GlobalKey<FormState>();
-  final _email = TextEditingController();
+  final _phone = TextEditingController();
   final _password = TextEditingController();
   bool _submitting = false;
 
   @override
   void dispose() {
-    _email.dispose();
+    _phone.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -34,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _submitting = true);
     try {
       await context.read<AuthProvider>().login(
-            email: _email.text.trim(),
+            phone: _phone.text.trim(),
             password: _password.text,
           );
       if (!mounted) return;
@@ -78,14 +78,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 TextFormField(
-                  controller: _email,
-                  keyboardType: TextInputType.emailAddress,
+                  controller: _phone,
+                  keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
-                    labelText: context.t('email'),
-                    prefixIcon: const Icon(Icons.mail_outline),
+                    labelText: context.t('phone'),
+                    prefixIcon: const Icon(Icons.phone_outlined),
                   ),
                   validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Enter your email'
+                      ? context.t('enter_phone')
                       : null,
                 ),
                 const SizedBox(height: 14),

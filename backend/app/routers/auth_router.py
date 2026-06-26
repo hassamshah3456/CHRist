@@ -1,8 +1,10 @@
 """Registration, login, and collector presence endpoints."""
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -17,21 +19,32 @@ from ..database import get_db
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _normalize_phone(raw: str) -> str:
+    """Keep digits only so 98765 43210 and +91-9876543210 match."""
+    return re.sub(r"\D", "", (raw or "").strip())
+
+
 @router.post("/register", response_model=schemas.TokenResponse)
 def register(payload: schemas.RegisterRequest, db: Session = Depends(get_db)):
-    existing = db.query(models.User).filter(
-        models.User.email == payload.email
-    ).first()
+    phone = _normalize_phone(payload.phone)
+    if len(phone) < 7:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Enter a valid phone number.",
+        )
+
+    existing = db.query(models.User).filter(models.User.phone == phone).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists.",
+            detail="An account with this phone number already exists.",
         )
 
     loc = payload.signup_location
     user = models.User(
         name=payload.name,
-        email=payload.email,
+        phone=phone,
+        email=None,
         password_hash=hash_password(payload.password),
         upi_address=(payload.upi_address or "").strip() or "-",
         upi_name=payload.upi_name,
@@ -52,14 +65,20 @@ def login(
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    # OAuth2PasswordRequestForm uses `username`; we treat it as the email.
+    # OAuth2PasswordRequestForm uses `username` — collectors pass phone,
+    # admins pass email.
+    username = (form.username or "").strip()
+    phone = _normalize_phone(username)
     user = db.query(models.User).filter(
-        models.User.email == form.username
+        or_(
+            models.User.phone == phone,
+            models.User.email == username,
+        )
     ).first()
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password.",
+            detail="Incorrect phone or password.",
         )
 
     token = create_access_token(user.id)

@@ -39,7 +39,9 @@ class User(Base):
     # needs a length, especially for primary keys and indexed/unique columns).
     id = Column(String(36), primary_key=True, default=_uuid)
     name = Column(String(255), nullable=False)
-    email = Column(String(255), unique=True, index=True, nullable=False)
+    # Collectors sign in with phone; admins use email (either may be null).
+    phone = Column(String(32), unique=True, index=True, nullable=True)
+    email = Column(String(255), unique=True, index=True, nullable=True)
     password_hash = Column(String(255), nullable=False)
 
     # Role: admins can view all collectors' data via the web dashboard.
@@ -180,11 +182,12 @@ class Answer(Base):
 
 
 class Setting(Base):
-    """Simple key/value store for admin-configurable settings (payment rates)."""
+    """Simple key/value store for admin-configurable settings (payment rates,
+    multi-language instructions HTML, …)."""
     __tablename__ = "settings"
 
     key = Column(String(64), primary_key=True)
-    value = Column(String(255), nullable=True)
+    value = Column(Text, nullable=True)
 
 
 class Payout(Base):

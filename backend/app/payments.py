@@ -31,6 +31,17 @@ def set_setting(db: Session, key: str, value: str) -> None:
     db.commit()
 
 
+def set_settings(db: Session, pairs: dict) -> None:
+    """Update several settings in one transaction (e.g. instructions HTML)."""
+    for key, value in pairs.items():
+        row = db.query(models.Setting).filter(models.Setting.key == key).first()
+        if row is None:
+            db.add(models.Setting(key=key, value=value))
+        else:
+            row.value = value
+    db.commit()
+
+
 def get_config(db: Session) -> dict:
     rows = {s.key: s.value for s in db.query(models.Setting).all()}
 

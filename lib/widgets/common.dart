@@ -38,21 +38,12 @@ class BrandLogo extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         Text(
-          'UsmleWise',
+          'CRIST Tool',
           style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.w800,
             color: color,
             letterSpacing: -0.5,
-          ),
-        ),
-        Text(
-          'CRIST',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 6,
-            color: light ? Colors.white70 : AppTheme.accent,
           ),
         ),
       ],

@@ -14,7 +14,7 @@ class GeoPoint(BaseModel):
 
 class RegisterRequest(BaseModel):
     name: str = Field(..., min_length=1)
-    email: EmailStr
+    phone: str = Field(..., min_length=7, max_length=32)
     password: str = Field(..., min_length=6)
     # Optional: a collector may use a relative's UPI, or none at all.
     upi_address: str = ""
@@ -30,7 +30,8 @@ class LoginRequest(BaseModel):
 class UserOut(BaseModel):
     id: str
     name: str
-    email: EmailStr
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
     upi_address: str
     upi_name: Optional[str] = None
     is_admin: bool = False
@@ -228,7 +229,8 @@ class QuestionStat(BaseModel):
 class CollectorSummary(BaseModel):
     id: str
     name: str
-    email: EmailStr
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
     upi_address: str
     upi_name: Optional[str] = None
     total: int
@@ -291,6 +293,7 @@ class AdminCollectionOut(BaseModel):
     user_id: str
     collector_name: str
     collector_email: Optional[str] = None
+    collector_phone: Optional[str] = None
     verbal_consent: bool
     phone: Optional[str] = None
     child_name: Optional[str] = None
@@ -349,7 +352,8 @@ class CollectorPayment(BaseModel):
     """Per-collector payout status for the admin Payments table."""
     id: str
     name: str
-    email: EmailStr
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
     upi_address: str
     upi_name: Optional[str] = None
     total_entries: int

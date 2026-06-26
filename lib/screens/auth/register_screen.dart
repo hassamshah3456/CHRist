@@ -19,7 +19,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _form = GlobalKey<FormState>();
   final _name = TextEditingController();
-  final _email = TextEditingController();
+  final _phone = TextEditingController();
   final _password = TextEditingController();
   final _upiAddress = TextEditingController();
   final _upiName = TextEditingController();
@@ -43,7 +43,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _name.dispose();
-    _email.dispose();
+    _phone.dispose();
     _password.dispose();
     _upiAddress.dispose();
     _upiName.dispose();
@@ -57,7 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       await context.read<AuthProvider>().register(
             name: _name.text.trim(),
-            email: _email.text.trim(),
+            phone: _phone.text.trim(),
             password: _password.text,
             upiAddress: _upiAddress.text.trim(),
             upiName: _differentUpiName ? _upiName.text.trim() : null,
@@ -114,15 +114,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 14),
                 _field(
-                  controller: _email,
-                  label: context.t('email'),
-                  icon: Icons.mail_outline,
-                  keyboardType: TextInputType.emailAddress,
+                  controller: _phone,
+                  label: context.t('phone'),
+                  icon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone,
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Enter your email';
-                    if (!v.contains('@') || !v.contains('.')) {
-                      return 'Enter a valid email';
+                    if (v == null || v.trim().isEmpty) {
+                      return context.t('enter_phone');
                     }
+                    final digits = v.replaceAll(RegExp(r'\D'), '');
+                    if (digits.length < 7) return context.t('invalid_phone');
                     return null;
                   },
                 ),

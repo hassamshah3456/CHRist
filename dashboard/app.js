@@ -1,4 +1,4 @@
-/* UsmleWise CRIST — management dashboard (vanilla JS, same-origin API). */
+/* CRIST Tool — management dashboard (vanilla JS, same-origin API). */
 "use strict";
 
 // Same origin as the API (served by FastAPI at /admin). Override only for
@@ -53,6 +53,7 @@ function fmtDate(iso) {
     ", " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : "—"; }
+function collectorContact(c) { return c.phone || c.email || "—"; }
 function fmtAge(years, months) {
   const parts = [];
   if (years != null) parts.push(`${years}y`);
@@ -201,7 +202,7 @@ function logout() {
 function showApp(user) {
   $("#login-view").classList.add("hidden");
   $("#app-view").classList.remove("hidden");
-  $("#user-chip").textContent = user.name || user.email;
+  $("#user-chip").textContent = user.name || user.email || user.phone;
   initMap();
   refreshAll();
 }
@@ -408,7 +409,7 @@ function renderCollectors(rows) {
   tbody.innerHTML = rows.map((c) => `
     <tr>
       <td>${escapeHtml(c.name)}</td>
-      <td>${escapeHtml(c.email)}</td>
+      <td>${escapeHtml(collectorContact(c))}</td>
       <td>${escapeHtml(c.upi_address || "—")}</td>
       <td><b>${c.total}</b></td>
       <td><span class="presence ${c.online ? "online" : ""}">${c.online ? "Online" : "Offline"}</span></td>
@@ -621,7 +622,7 @@ async function openGroup(id, manageRefresh = true) {
   tbody.innerHTML = selectedGroup.members.map((c) => `
     <tr>
       <td><span class="presence ${c.online ? "online" : ""}">${c.online ? "Online" : "Offline"}</span></td>
-      <td><b>${escapeHtml(c.name)}</b><br><small>${escapeHtml(c.email)}</small></td>
+      <td><b>${escapeHtml(c.name)}</b><br><small>${escapeHtml(collectorContact(c))}</small></td>
       <td><b>${c.total}</b></td>
       <td>${fmtDate(c.last_seen)}</td>
       <td>${locationCell(c)}</td>
@@ -698,7 +699,7 @@ function groupForm(group) {
     ? allCollectors.map((c) => `
       <label class="member-option">
         <input type="checkbox" value="${c.id}" ${selected.has(c.id) ? "checked" : ""}>
-        <span>${escapeHtml(c.name)}<small>${escapeHtml(c.email)} · ${c.total} collections</small></span>
+        <span>${escapeHtml(c.name)}<small>${escapeHtml(collectorContact(c))} · ${c.total} collections</small></span>
       </label>`).join("")
     : `<div class="empty">No collectors available.</div>`;
   return `
@@ -822,7 +823,7 @@ async function loadCardApprovals() {
   tbody.innerHTML = rows.map((r) => `
     <tr>
       <td>${fmtDate(r.collected_at)}</td>
-      <td>${escapeHtml(r.collector_name || "—")}<br><small>${escapeHtml(r.collector_email || "")}</small></td>
+      <td>${escapeHtml(r.collector_name || "—")}<br><small>${escapeHtml(r.collector_phone || r.collector_email || "")}</small></td>
       <td>${escapeHtml(r.child_name || "—")}</td>
       <td>${escapeHtml(r.phone || "—")}</td>
       <td><button class="cancel card-view-btn" data-photo="${escapeHtml(r.medical_record_photo || "")}"

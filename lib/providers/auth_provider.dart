@@ -47,7 +47,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> register({
     required String name,
-    required String email,
+    required String phone,
     required String password,
     required String upiAddress,
     String? upiName,
@@ -57,7 +57,7 @@ class AuthProvider extends ChangeNotifier {
 
     final res = await api.postJson('/auth/register', {
       'name': name,
-      'email': email,
+      'phone': phone,
       'password': password,
       'upi_address': upiAddress,
       'upi_name': (upiName != null && upiName.trim().isNotEmpty)
@@ -74,12 +74,12 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> login({
-    required String email,
+    required String phone,
     required String password,
   }) async {
     // OAuth2 login endpoint expects form fields username/password.
     final res = await api.postForm('/auth/login', {
-      'username': email,
+      'username': phone,
       'password': password,
     });
     await _onAuthSuccess(res);

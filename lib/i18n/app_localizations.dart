@@ -178,6 +178,17 @@ const Map<String, Map<String, String>> _strings = {
   'register': {'en': 'Register', 'hi': 'पंजीकरण करें', 'kn': 'ನೋಂದಾಯಿಸಿ'},
   'full_name': {'en': 'Full name', 'hi': 'पूरा नाम', 'kn': 'ಪೂರ್ಣ ಹೆಸರು'},
   'email': {'en': 'Email', 'hi': 'ईमेल', 'kn': 'ಇಮೇಲ್'},
+  'phone': {'en': 'Phone number', 'hi': 'फोन नंबर', 'kn': 'ಫೋನ್ ಸಂಖ್ಯೆ'},
+  'enter_phone': {
+    'en': 'Enter your phone number',
+    'hi': 'अपना फोन नंबर दर्ज करें',
+    'kn': 'ನಿಮ್ಮ ಫೋನ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ',
+  },
+  'invalid_phone': {
+    'en': 'Enter a valid phone number',
+    'hi': 'मान्य फोन नंबर दर्ज करें',
+    'kn': 'ಮಾನ್ಯ ಫೋನ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ',
+  },
   'password': {'en': 'Password', 'hi': 'पासवर्ड', 'kn': 'ಪಾಸ್‌ವರ್ಡ್'},
   'upi_id_optional': {
     'en': 'UPI ID (optional)',
