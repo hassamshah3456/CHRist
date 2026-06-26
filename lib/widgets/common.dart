@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../i18n/app_localizations.dart';
+import '../services/location_service.dart';
 import '../theme/app_theme.dart';
 
 /// The app's brand wordmark used on auth screens.
@@ -106,14 +110,150 @@ class LocationBanner extends StatelessWidget {
           const Icon(Icons.location_off_rounded,
               color: AppTheme.danger, size: 22),
           const SizedBox(width: 10),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Location is off. Turn it on so collections are geo-tagged.',
-              style: TextStyle(fontSize: 13, color: AppTheme.textDark),
+              context.t('location_off_banner'),
+              style: const TextStyle(fontSize: 13, color: AppTheme.textDark),
             ),
           ),
-          TextButton(onPressed: onEnable, child: const Text('Enable')),
+          TextButton(onPressed: onEnable, child: Text(context.t('enable'))),
         ],
+      ),
+    );
+  }
+}
+
+/// Blocks the whole app behind a mandatory location check. While the device's
+/// location services are off (or permission is denied) the [child] is hidden
+/// and the user is repeatedly directed to switch location on. The check
+/// re-runs on a short timer and whenever the app is resumed, so the moment the
+/// user turns location on they're let straight through — no manual retry.
+class LocationGate extends StatefulWidget {
+  final Widget child;
+  const LocationGate({super.key, required this.child});
+
+  @override
+  State<LocationGate> createState() => _LocationGateState();
+}
+
+class _LocationGateState extends State<LocationGate>
+    with WidgetsBindingObserver {
+  bool _checking = true;
+  bool _ok = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _check();
+    // Keep nudging until location is on; stop polling once it is.
+    _timer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (!_ok) _check();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _check();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  Future<void> _check() async {
+    final loc = context.read<LocationService>();
+    final ok = await loc.ensurePermission();
+    if (!mounted) return;
+    setState(() {
+      _ok = ok;
+      _checking = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_ok) return widget.child;
+    // Avoid flashing the warning before the first check resolves.
+    if (_checking) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final loc = context.read<LocationService>();
+    return Scaffold(
+      backgroundColor: AppTheme.surface,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 92,
+                height: 92,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppTheme.danger.withOpacity(.10),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.location_off_rounded,
+                    size: 46, color: AppTheme.danger),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                context.t('location_required_title'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 21, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                context.t('location_required_body'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 14, color: AppTheme.textMuted, height: 1.5),
+              ),
+              const SizedBox(height: 28),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  await loc.openLocationSettings();
+                  _check();
+                },
+                icon: const Icon(Icons.my_location_rounded),
+                label: Text(context.t('turn_on_location')),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await loc.openAppSettings();
+                  _check();
+                },
+                icon: const Icon(Icons.settings_outlined),
+                label: Text(context.t('open_app_settings')),
+              ),
+              const SizedBox(height: 20),
+              if (_checking)
+                const Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  ),
+                )
+              else
+                TextButton(
+                  onPressed: _check,
+                  child: Text(context.t('checking_location')),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

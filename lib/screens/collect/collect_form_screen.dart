@@ -71,15 +71,21 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
     final qs = await context.read<QuestionnaireService>().load();
     if (!mounted) return;
     for (final q in qs) {
-      if (q.qtype == 'multi_choice') _multi[q.id] = <String>{};
-      if (q.qtype == 'number' || q.qtype == 'text') {
-        _text[q.id] = TextEditingController();
-      }
+      _prepareState(q);
+      if (q.followUp != null) _prepareState(q.followUp!);
     }
     setState(() {
       _questions = qs;
       _loading = false;
     });
+  }
+
+  /// Sets up the per-question controllers/sets used by the input widgets.
+  void _prepareState(Question q) {
+    if (q.qtype == 'multi_choice') _multi[q.id] = <String>{};
+    if (q.qtype == 'number' || q.qtype == 'text') {
+      _text[q.id] = TextEditingController();
+    }
   }
 
   @override
@@ -115,12 +121,12 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.photo_camera_rounded),
-              title: const Text('Take a photo'),
+              title: Text(context.t('take_photo')),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_rounded),
-              title: const Text('Choose from gallery'),
+              title: Text(context.t('choose_gallery')),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
           ],
@@ -144,114 +150,141 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
         }
       });
     } catch (_) {
-      if (mounted) showSnack(context, 'Could not capture photo.', error: true);
+      if (mounted) {
+        showSnack(context, context.t('could_not_capture_photo'), error: true);
+      }
     }
   }
 
   String? _validate() {
     final age = int.tryParse(_age.text.trim());
     if (_age.text.trim().isEmpty || age == null || age < 0 || age > 18) {
-      return 'Enter a valid age (0–18 years).';
+      return context.t('invalid_age');
     }
     final mTxt = _ageMonths.text.trim();
     if (mTxt.isNotEmpty) {
       final m = int.tryParse(mTxt);
-      if (m == null || m < 0 || m > 11) return 'Enter valid months (0–11).';
+      if (m == null || m < 0 || m > 11) return context.t('invalid_months');
     }
-    if (_carrying == null) return 'Select who is carrying the child.';
+    if (_carrying == null) return context.t('select_carrying');
     if (_carrying == 'Others' && _carryingOther.text.trim().isEmpty) {
-      return 'Please specify who is carrying the child.';
+      return context.t('specify_carrying');
     }
     for (final q in _questions) {
-      if (!q.required) continue;
-      switch (q.qtype) {
-        case 'yes_no':
-          if (_yesNo[q.id] == null) return q.title;
-          break;
-        case 'single_choice':
-          if (_single[q.id] == null) return q.title;
-          break;
-        case 'multi_choice':
-          if ((_multi[q.id] ?? {}).isEmpty) return q.title;
-          break;
-        case 'number':
-        case 'text':
-          if ((_text[q.id]?.text.trim() ?? '').isEmpty) return q.title;
-          break;
+      final missing = _missingAnswer(q);
+      if (missing != null) return missing;
+      // A follow-up is only required when its parent yes/no is answered "Yes".
+      if (q.qtype == 'yes_no' &&
+          _yesNo[q.id] == true &&
+          q.followUp != null) {
+        final fuMissing = _missingAnswer(q.followUp!);
+        if (fuMissing != null) return fuMissing;
       }
     }
     if (_triplePositive && _caregiverPhone.text.trim().length < 7) {
-      return "Caregiver phone is required for triple-positive cases.";
+      return context.t('caregiver_required_msg');
     }
     return null;
+  }
+
+  /// Returns a localized "please answer …" message if [q] is required and
+  /// unanswered, otherwise null.
+  String? _missingAnswer(Question q) {
+    if (!q.required) return null;
+    bool answered;
+    switch (q.qtype) {
+      case 'yes_no':
+        answered = _yesNo[q.id] != null;
+        break;
+      case 'single_choice':
+        answered = _single[q.id] != null;
+        break;
+      case 'multi_choice':
+        answered = (_multi[q.id] ?? {}).isNotEmpty;
+        break;
+      case 'number':
+      case 'text':
+        answered = (_text[q.id]?.text.trim() ?? '').isNotEmpty;
+        break;
+      default:
+        answered = true;
+    }
+    return answered ? null : '${context.t('please_answer')}: ${q.localizedTitle(_lang)}';
   }
 
   List<CollectionAnswer> _buildAnswers() {
     final out = <CollectionAnswer>[];
     for (final q in _questions) {
-      CollectionAnswer? a;
-      switch (q.qtype) {
-        case 'yes_no':
-          final v = _yesNo[q.id];
-          if (v == null) break;
-          a = CollectionAnswer(
-            questionId: q.id,
-            questionCode: q.code,
-            questionTitle: q.title,
-            qtype: q.qtype,
-            valueBool: v,
-            valueText: _notes[q.id],
-            photoLocalPath: _photos[q.id],
-          );
-          break;
-        case 'single_choice':
-          if (_single[q.id] == null) break;
-          a = CollectionAnswer(
-            questionId: q.id,
-            questionCode: q.code,
-            questionTitle: q.title,
-            qtype: q.qtype,
-            valueText: _single[q.id],
-          );
-          break;
-        case 'multi_choice':
-          final set = _multi[q.id] ?? {};
-          if (set.isEmpty) break;
-          a = CollectionAnswer(
-            questionId: q.id,
-            questionCode: q.code,
-            questionTitle: q.title,
-            qtype: q.qtype,
-            valueText: set.join(', '),
-          );
-          break;
-        case 'number':
-          final t = _text[q.id]?.text.trim() ?? '';
-          if (t.isEmpty) break;
-          a = CollectionAnswer(
-            questionId: q.id,
-            questionCode: q.code,
-            questionTitle: q.title,
-            qtype: q.qtype,
-            valueNumber: double.tryParse(t),
-            valueText: double.tryParse(t) == null ? t : null,
-          );
-          break;
-        case 'text':
-          final t = _text[q.id]?.text.trim() ?? '';
-          if (t.isEmpty) break;
-          a = CollectionAnswer(
-            questionId: q.id,
-            questionCode: q.code,
-            questionTitle: q.title,
-            qtype: q.qtype,
-            valueText: t,
-          );
-          break;
-      }
+      final a = _answerFor(q);
       if (a != null) out.add(a);
+      // Capture the follow-up answer only when the parent was answered "Yes".
+      if (q.qtype == 'yes_no' && _yesNo[q.id] == true && q.followUp != null) {
+        final fu = _answerFor(q.followUp!);
+        if (fu != null) out.add(fu);
+      }
     }
     return out;
+  }
+
+  /// Builds the [CollectionAnswer] for a single question (parent or follow-up)
+  /// from the current form state, or null if it wasn't answered.
+  CollectionAnswer? _answerFor(Question q) {
+    switch (q.qtype) {
+      case 'yes_no':
+        final v = _yesNo[q.id];
+        if (v == null) return null;
+        return CollectionAnswer(
+          questionId: q.id,
+          questionCode: q.code,
+          questionTitle: q.title,
+          qtype: q.qtype,
+          valueBool: v,
+          valueText: _notes[q.id],
+          photoLocalPath: _photos[q.id],
+        );
+      case 'single_choice':
+        if (_single[q.id] == null) return null;
+        return CollectionAnswer(
+          questionId: q.id,
+          questionCode: q.code,
+          questionTitle: q.title,
+          qtype: q.qtype,
+          valueText: _single[q.id],
+        );
+      case 'multi_choice':
+        final set = _multi[q.id] ?? {};
+        if (set.isEmpty) return null;
+        return CollectionAnswer(
+          questionId: q.id,
+          questionCode: q.code,
+          questionTitle: q.title,
+          qtype: q.qtype,
+          valueText: set.join(', '),
+        );
+      case 'number':
+        final t = _text[q.id]?.text.trim() ?? '';
+        if (t.isEmpty) return null;
+        return CollectionAnswer(
+          questionId: q.id,
+          questionCode: q.code,
+          questionTitle: q.title,
+          qtype: q.qtype,
+          valueNumber: double.tryParse(t),
+          valueText: double.tryParse(t) == null ? t : null,
+        );
+      case 'text':
+        final t = _text[q.id]?.text.trim() ?? '';
+        if (t.isEmpty) return null;
+        return CollectionAnswer(
+          questionId: q.id,
+          questionCode: q.code,
+          questionTitle: q.title,
+          qtype: q.qtype,
+          valueText: t,
+        );
+      default:
+        return null;
+    }
   }
 
   Future<void> _save() async {
@@ -287,12 +320,12 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
             answers: _buildAnswers(),
           );
       if (!mounted) return;
-      showSnack(context, 'Collection saved.');
+      showSnack(context, context.t('collection_saved'));
       Navigator.of(context).popUntil((r) => r.isFirst);
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      showSnack(context, 'Could not save: $e', error: true);
+      showSnack(context, '${context.t('could_not_save')}: $e', error: true);
     }
   }
 
@@ -543,12 +576,12 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
         return TextField(
           controller: _text[q.id],
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(hintText: 'Enter a number'),
+          decoration: InputDecoration(hintText: context.t('enter_number')),
         );
       case 'text':
         return TextField(
           controller: _text[q.id],
-          decoration: const InputDecoration(hintText: 'Type your answer'),
+          decoration: InputDecoration(hintText: context.t('type_answer')),
         );
       default:
         return const SizedBox.shrink();
@@ -568,13 +601,15 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
             if (!val) {
               _photos.remove(q.id);
               _notes.remove(q.id);
+              // Drop any answer to the follow-up if the parent flips to "No".
+              _clearAnswer(q.followUp);
             }
           }),
         ),
         if (showExtras && q.noteOnYes) ...[
           const SizedBox(height: 12),
           TextField(
-            decoration: const InputDecoration(hintText: 'Add a note'),
+            decoration: InputDecoration(hintText: context.t('add_note')),
             onChanged: (t) => _notes[q.id] = t,
           ),
         ],
@@ -591,11 +626,57 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
             onPressed: () => _pickPhoto(qid: q.id),
             icon: const Icon(Icons.photo_camera_rounded),
             label: Text(_photos[q.id] == null
-                ? 'Attach photo (optional)'
-                : 'Replace photo'),
+                ? context.t('attach_photo_optional')
+                : context.t('replace_photo')),
           ),
         ],
+        // Follow-up question: only revealed when this yes/no is "Yes".
+        if (showExtras && q.followUp != null) _followUpTile(q.followUp!),
       ],
     );
+  }
+
+  /// The nested follow-up shown under a "Yes" answer. Reuses the same input
+  /// widgets (incl. its own yes/no + photo/note upload).
+  Widget _followUpTile(Question fu) {
+    return Container(
+      margin: const EdgeInsets.only(top: 14),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.primary.withOpacity(.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border(
+          left: BorderSide(color: AppTheme.primary.withOpacity(.5), width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            fu.localizedTitle(_lang),
+            style:
+                const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
+          if ((fu.localizedHelp(_lang) ?? '').isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(fu.localizedHelp(_lang)!,
+                style: const TextStyle(
+                    color: AppTheme.textMuted, fontSize: 12.5)),
+          ],
+          const SizedBox(height: 10),
+          _questionInput(fu),
+        ],
+      ),
+    );
+  }
+
+  void _clearAnswer(Question? q) {
+    if (q == null) return;
+    _yesNo.remove(q.id);
+    _single.remove(q.id);
+    _multi[q.id]?.clear();
+    _text[q.id]?.clear();
+    _notes.remove(q.id);
+    _photos.remove(q.id);
   }
 }

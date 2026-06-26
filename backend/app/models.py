@@ -149,6 +149,10 @@ class Question(Base):
     # For yes_no: when answered "yes", prompt for a photo / a note.
     photo_on_yes = Column(Boolean, nullable=False, default=False)
     note_on_yes = Column(Boolean, nullable=False, default=False)
+    # Optional follow-up question shown only when this yes/no is answered "yes".
+    # Stored as JSON with the same shape as a question (title, qtype, options,
+    # photo_on_yes, note_on_yes, translations, …). One level deep only.
+    follow_up_json = Column(Text, nullable=True)
 
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

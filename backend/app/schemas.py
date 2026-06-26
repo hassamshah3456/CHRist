@@ -61,6 +61,21 @@ class HeartbeatResponse(BaseModel):
 QTYPES = {"yes_no", "single_choice", "multi_choice", "number", "text"}
 
 
+class FollowUp(BaseModel):
+    """A nested question asked only when its parent yes/no is answered "Yes".
+
+    Mirrors the main question shape so it supports the same yes/no and upload
+    (photo on "Yes") functionality, plus the other answer types."""
+    title: str = ""
+    help_text: Optional[str] = None
+    qtype: str = "yes_no"
+    options: List[str] = []
+    required: bool = False
+    photo_on_yes: bool = False
+    note_on_yes: bool = False
+    translations: Dict[str, Any] = {}
+
+
 class QuestionIn(BaseModel):
     code: Optional[str] = None  # auto-generated if omitted
     title: str = Field(..., min_length=1)
@@ -76,6 +91,8 @@ class QuestionIn(BaseModel):
     # Per-language overrides, e.g. {"hi": {"title": "...", "help_text": "...",
     # "options": [...]}, "kn": {...}}. English uses the base fields above.
     translations: Dict[str, Any] = {}
+    # Optional follow-up shown when this yes/no question is answered "Yes".
+    follow_up: Optional[FollowUp] = None
 
 
 class QuestionOut(BaseModel):
@@ -92,6 +109,7 @@ class QuestionOut(BaseModel):
     note_on_yes: bool
     is_active: bool
     translations: Dict[str, Any] = {}
+    follow_up: Optional[FollowUp] = None
 
 
 class ReorderRequest(BaseModel):

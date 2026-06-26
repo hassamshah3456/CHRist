@@ -927,6 +927,7 @@ function renderQuestions() {
           ${q.secondary_aim ? `<span class="q-tag secondary">Secondary aim</span>` : ""}
           ${q.photo_on_yes ? `<span class="q-tag photo">Photo on “Yes”</span>` : ""}
           ${q.note_on_yes ? `<span class="q-tag">Note on “Yes”</span>` : ""}
+          ${q.follow_up ? `<span class="q-tag secondary">Follow-up on “Yes”</span>` : ""}
           ${!q.is_active ? `<span class="q-tag">Disabled</span>` : ""}
           ${q.options && q.options.length ? `<span class="q-tag">${q.options.length} options</span>` : ""}
         </div>
@@ -965,6 +966,7 @@ function questionForm(q) {
       <label class="check"><input type="checkbox" id="q-photo" ${q.photo_on_yes ? "checked" : ""}/> Capture a photo when answered “Yes” (e.g. OPD card)</label>
       <label class="check"><input type="checkbox" id="q-note" ${q.note_on_yes ? "checked" : ""}/> Ask for a text note when answered “Yes”</label>
     </div>
+    ${followUpBlock(q)}
     <details class="tr-block">
       <summary>Translations (Hindi / Kannada)</summary>
       ${_trFields("hi", "हिन्दी (Hindi)", q)}
@@ -1005,6 +1007,68 @@ function _trCollect(lang, qtype) {
   return Object.keys(out).length ? out : null;
 }
 
+/* ---------- follow-up question (asked when a yes/no is "Yes") ---------- */
+function followUpBlock(q) {
+  const fu = (q && q.follow_up) || null;
+  const enabled = !!fu;
+  const f = fu || {};
+  const fuType = f.qtype || "yes_no";
+  const isChoice = ["single_choice", "multi_choice"].includes(fuType);
+  return `
+    <div id="q-followup-wrap" class="followup-wrap ${q.qtype === "yes_no" ? "" : "hidden"}">
+      <label class="check"><input type="checkbox" id="q-fu-enable" ${enabled ? "checked" : ""}/> Ask a follow-up question when answered “Yes”</label>
+      <div id="q-fu-fields" class="fu-fields ${enabled ? "" : "hidden"}">
+        <label>Follow-up question text</label>
+        <input type="text" id="q-fu-title" value="${escapeHtml(f.title || "")}" placeholder="e.g. Was it treated by a doctor?" />
+        <label>Help text (optional)</label>
+        <textarea id="q-fu-help" placeholder="Guidance shown under the follow-up">${escapeHtml(f.help_text || "")}</textarea>
+        <label>Follow-up answer type</label>
+        <select id="q-fu-type">
+          ${QTYPES.map((t) => `<option value="${t[0]}" ${fuType === t[0] ? "selected" : ""}>${t[1]}</option>`).join("")}
+        </select>
+        <div id="q-fu-options-wrap" class="${isChoice ? "" : "hidden"}">
+          <label>Options (one per line)</label>
+          <textarea id="q-fu-options" placeholder="Option A&#10;Option B">${escapeHtml((f.options || []).join("\n"))}</textarea>
+        </div>
+        <div id="q-fu-yesno-wrap" class="${fuType === "yes_no" ? "" : "hidden"}">
+          <label class="check"><input type="checkbox" id="q-fu-photo" ${f.photo_on_yes ? "checked" : ""}/> Capture a photo when the follow-up is “Yes” (upload)</label>
+          <label class="check"><input type="checkbox" id="q-fu-note" ${f.note_on_yes ? "checked" : ""}/> Ask for a text note when the follow-up is “Yes”</label>
+        </div>
+        <label class="check"><input type="checkbox" id="q-fu-required" ${f.required ? "checked" : ""}/> Follow-up required</label>
+        <details class="tr-block">
+          <summary>Follow-up translations (Hindi / Kannada)</summary>
+          ${_fuTrFields("hi", "हिन्दी (Hindi)", f, isChoice)}
+          ${_fuTrFields("kn", "ಕನ್ನಡ (Kannada)", f, isChoice)}
+        </details>
+      </div>
+    </div>`;
+}
+
+function _fuTrFields(lang, label, fu, isChoice) {
+  const t = (fu.translations && fu.translations[lang]) || {};
+  const opts = Array.isArray(t.options) ? t.options.join("\n") : "";
+  return `
+    <div class="tr-lang">
+      <strong>${label}</strong>
+      <input type="text" id="q-fu-title-${lang}" placeholder="Follow-up text" value="${escapeHtml(t.title || "")}" />
+      <textarea id="q-fu-help-${lang}" placeholder="Help text (optional)">${escapeHtml(t.help_text || "")}</textarea>
+      <textarea id="q-fu-options-${lang}" class="${isChoice ? "" : "hidden"}" placeholder="Options (one per line)">${escapeHtml(opts)}</textarea>
+    </div>`;
+}
+
+function _fuTrCollect(lang, futype) {
+  const title = $("#q-fu-title-" + lang).value.trim();
+  const help = $("#q-fu-help-" + lang).value.trim();
+  const options = ["single_choice", "multi_choice"].includes(futype)
+    ? $("#q-fu-options-" + lang).value.split("\n").map((s) => s.trim()).filter(Boolean)
+    : [];
+  const out = {};
+  if (title) out.title = title;
+  if (help) out.help_text = help;
+  if (options.length) out.options = options;
+  return Object.keys(out).length ? out : null;
+}
+
 function openQuestionModal(q) {
   openModal(questionForm(q));
   const typeSel = $("#q-type");
@@ -1013,9 +1077,27 @@ function openQuestionModal(q) {
     const isChoice = ["single_choice", "multi_choice"].includes(t);
     $("#q-options-wrap").classList.toggle("hidden", !isChoice);
     $("#q-yesno-wrap").classList.toggle("hidden", t !== "yes_no");
+    // The follow-up only applies to yes/no parent questions.
+    $("#q-followup-wrap").classList.toggle("hidden", t !== "yes_no");
     ["hi", "kn"].forEach((l) =>
       $("#q-options-" + l).classList.toggle("hidden", !isChoice));
   });
+
+  // Follow-up: reveal its fields when enabled, and mirror the option/yes-no
+  // toggles based on the follow-up's own answer type.
+  $("#q-fu-enable").addEventListener("change", (e) => {
+    $("#q-fu-fields").classList.toggle("hidden", !e.target.checked);
+  });
+  const fuTypeSel = $("#q-fu-type");
+  fuTypeSel.addEventListener("change", () => {
+    const t = fuTypeSel.value;
+    const isChoice = ["single_choice", "multi_choice"].includes(t);
+    $("#q-fu-options-wrap").classList.toggle("hidden", !isChoice);
+    $("#q-fu-yesno-wrap").classList.toggle("hidden", t !== "yes_no");
+    ["hi", "kn"].forEach((l) =>
+      $("#q-fu-options-" + l).classList.toggle("hidden", !isChoice));
+  });
+
   $("#q-cancel").addEventListener("click", closeModal);
   $("#q-save").addEventListener("click", () => saveQuestion(q && q.id));
 }
@@ -1032,12 +1114,41 @@ async function saveQuestion(id) {
   const kn = _trCollect("kn", qtype);
   if (hi) translations.hi = hi;
   if (kn) translations.kn = kn;
+
+  // Follow-up (only for yes/no parents, when enabled and given a title).
+  let follow_up = null;
+  if (qtype === "yes_no" && $("#q-fu-enable").checked) {
+    const fuTitle = $("#q-fu-title").value.trim();
+    if (fuTitle) {
+      const futype = $("#q-fu-type").value;
+      const fuOptions = ["single_choice", "multi_choice"].includes(futype)
+        ? $("#q-fu-options").value.split("\n").map((s) => s.trim()).filter(Boolean)
+        : [];
+      const fuTr = {};
+      const fhi = _fuTrCollect("hi", futype);
+      const fkn = _fuTrCollect("kn", futype);
+      if (fhi) fuTr.hi = fhi;
+      if (fkn) fuTr.kn = fkn;
+      follow_up = {
+        title: fuTitle,
+        help_text: $("#q-fu-help").value.trim() || null,
+        qtype: futype,
+        options: fuOptions,
+        required: $("#q-fu-required").checked,
+        photo_on_yes: futype === "yes_no" && $("#q-fu-photo").checked,
+        note_on_yes: futype === "yes_no" && $("#q-fu-note").checked,
+        translations: fuTr,
+      };
+    }
+  }
+
   const body = {
     title,
     help_text: $("#q-help").value.trim() || null,
     qtype,
     options,
     translations,
+    follow_up,
     required: $("#q-required").checked,
     secondary_aim: $("#q-secondary").checked,
     photo_on_yes: qtype === "yes_no" && $("#q-photo").checked,

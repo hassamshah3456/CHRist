@@ -14,6 +14,10 @@ class Question {
   final bool noteOnYes;
   // Per-language overrides: {"hi": {"title":..,"help_text":..,"options":[..]}}
   final Map<String, dynamic> translations;
+  // Optional nested question, shown only when this yes/no is answered "Yes".
+  // Itself a [Question] (with its own synthetic id/code) so it reuses the same
+  // rendering/answer logic. A follow-up never has its own follow-up.
+  final Question? followUp;
 
   const Question({
     required this.id,
@@ -28,6 +32,7 @@ class Question {
     this.photoOnYes = false,
     this.noteOnYes = false,
     this.translations = const {},
+    this.followUp,
   });
 
   Map<String, dynamic>? _tr(String lang) {
@@ -54,21 +59,66 @@ class Question {
     return options;
   }
 
-  factory Question.fromApiJson(Map<String, dynamic> j) => Question(
-        id: j['id'] as String,
-        code: j['code'] as String,
-        orderIndex: j['order_index'] as int? ?? 0,
-        title: j['title'] as String? ?? '',
-        helpText: j['help_text'] as String?,
-        qtype: j['qtype'] as String? ?? 'yes_no',
+  factory Question.fromApiJson(Map<String, dynamic> j) {
+    final id = j['id'] as String;
+    final code = j['code'] as String;
+    final fuRaw = j['follow_up'];
+    Question? followUp;
+    if (fuRaw is Map &&
+        ((fuRaw['title']?.toString().trim().isNotEmpty) ?? false)) {
+      followUp = Question(
+        // Synthetic identity so the form's answer maps stay keyed uniquely and
+        // the follow-up syncs as its own answer row.
+        id: '${id}__fu',
+        code: '${code}__fu',
+        orderIndex: 0,
+        title: fuRaw['title'].toString(),
+        helpText: fuRaw['help_text'] as String?,
+        qtype: fuRaw['qtype'] as String? ?? 'yes_no',
         options:
-            (j['options'] as List?)?.map((e) => e.toString()).toList() ?? [],
-        required: j['required'] as bool? ?? true,
-        secondaryAim: j['secondary_aim'] as bool? ?? false,
-        photoOnYes: j['photo_on_yes'] as bool? ?? false,
-        noteOnYes: j['note_on_yes'] as bool? ?? false,
-        translations: (j['translations'] as Map?)?.cast<String, dynamic>() ?? const {},
+            (fuRaw['options'] as List?)?.map((e) => e.toString()).toList() ??
+                const [],
+        required: fuRaw['required'] as bool? ?? false,
+        photoOnYes: fuRaw['photo_on_yes'] as bool? ?? false,
+        noteOnYes: fuRaw['note_on_yes'] as bool? ?? false,
+        translations:
+            (fuRaw['translations'] as Map?)?.cast<String, dynamic>() ??
+                const {},
       );
+    }
+    return Question(
+      id: id,
+      code: code,
+      orderIndex: j['order_index'] as int? ?? 0,
+      title: j['title'] as String? ?? '',
+      helpText: j['help_text'] as String?,
+      qtype: j['qtype'] as String? ?? 'yes_no',
+      options:
+          (j['options'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      required: j['required'] as bool? ?? true,
+      secondaryAim: j['secondary_aim'] as bool? ?? false,
+      photoOnYes: j['photo_on_yes'] as bool? ?? false,
+      noteOnYes: j['note_on_yes'] as bool? ?? false,
+      translations:
+          (j['translations'] as Map?)?.cast<String, dynamic>() ?? const {},
+      followUp: followUp,
+    );
+  }
+
+  /// Follow-up serialised in the API shape so the local cache round-trips
+  /// through [fromApiJson] cleanly.
+  Map<String, dynamic>? get _followUpJson => followUp == null
+      ? null
+      : {
+          'title': followUp!.title,
+          'help_text': followUp!.helpText,
+          'qtype': followUp!.qtype,
+          'options': followUp!.options,
+          'required': followUp!.required,
+          'photo_on_yes': followUp!.photoOnYes,
+          'note_on_yes': followUp!.noteOnYes,
+          'translations': followUp!.translations,
+        };
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -83,5 +133,6 @@ class Question {
         'photo_on_yes': photoOnYes,
         'note_on_yes': noteOnYes,
         'translations': translations,
+        'follow_up': _followUpJson,
       };
 }

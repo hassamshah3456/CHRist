@@ -11,6 +11,7 @@ import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import 'auth/welcome_screen.dart';
 import 'collect/collect_form_screen.dart';
+import 'language_picker_screen.dart';
 import 'instructions_screen.dart';
 import 'payment_screen.dart';
 import 'collections_screen.dart';
@@ -73,7 +74,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final name = auth.user?.name ?? 'Collector';
     final firstName = name.split(' ').first;
 
-    return Scaffold(
+    return LocationGate(
+      child: Scaffold(
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: () async {
@@ -149,6 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -156,16 +159,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Sign out?'),
-        content:
-            const Text('Unsynced collections will be cleared on this device.'),
+        title: Text(context.t('sign_out_q')),
+        content: Text(context.t('sign_out_body')),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
+              child: Text(context.t('cancel'))),
           TextButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Sign out')),
+              child: Text(context.t('sign_out'))),
         ],
       ),
     );
@@ -205,9 +207,14 @@ class _Header extends StatelessWidget {
           ),
         ),
         IconButton(
+          onPressed: () => showLanguageSheet(context),
+          icon: const Icon(Icons.translate_rounded),
+          tooltip: context.t('change_language'),
+        ),
+        IconButton(
           onPressed: onLogout,
           icon: const Icon(Icons.logout_rounded),
-          tooltip: 'Sign out',
+          tooltip: context.t('sign_out'),
         ),
       ],
     );

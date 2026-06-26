@@ -2,7 +2,7 @@
 import hashlib
 import json
 import re
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
@@ -31,6 +31,14 @@ def _to_out(q: models.Question) -> schemas.QuestionOut:
             translations = json.loads(q.translations_json)
         except Exception:
             translations = {}
+    follow_up = None
+    if getattr(q, "follow_up_json", None):
+        try:
+            data = json.loads(q.follow_up_json)
+            if isinstance(data, dict) and (data.get("title") or "").strip():
+                follow_up = schemas.FollowUp(**data)
+        except Exception:
+            follow_up = None
     return schemas.QuestionOut(
         id=q.id,
         code=q.code,
@@ -45,7 +53,18 @@ def _to_out(q: models.Question) -> schemas.QuestionOut:
         note_on_yes=q.note_on_yes,
         is_active=q.is_active,
         translations=translations,
+        follow_up=follow_up,
     )
+
+
+def _follow_up_json(payload: schemas.QuestionIn) -> Optional[str]:
+    """Serialise a follow-up only for yes/no questions that actually define one."""
+    fu = payload.follow_up
+    if payload.qtype != "yes_no" or fu is None or not (fu.title or "").strip():
+        return None
+    if fu.qtype not in schemas.QTYPES:
+        fu.qtype = "yes_no"
+    return json.dumps(fu.model_dump())
 
 
 def _slugify(text: str) -> str:
@@ -121,6 +140,7 @@ def create_question(
         secondary_aim=payload.secondary_aim,
         photo_on_yes=payload.photo_on_yes,
         note_on_yes=payload.note_on_yes,
+        follow_up_json=_follow_up_json(payload),
         is_active=payload.is_active,
     )
     db.add(q)
@@ -155,6 +175,7 @@ def update_question(
     q.secondary_aim = payload.secondary_aim
     q.photo_on_yes = payload.photo_on_yes
     q.note_on_yes = payload.note_on_yes
+    q.follow_up_json = _follow_up_json(payload)
     q.is_active = payload.is_active
     if payload.order_index is not None:
         q.order_index = payload.order_index

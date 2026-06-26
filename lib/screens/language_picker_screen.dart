@@ -6,6 +6,84 @@ import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import 'splash_screen.dart';
 
+/// A bottom sheet that lets the collector switch language at any time after
+/// the first-launch pick. The choice is persisted and the whole app rebuilds
+/// in the new language immediately.
+Future<void> showLanguageSheet(BuildContext context) {
+  final locale = context.read<LocaleProvider>();
+  return showModalBottomSheet<void>(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (sheetContext) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              context.t('change_language'),
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 16),
+            ...LocaleProvider.supported.map((code) {
+              final selected = locale.code == code;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () async {
+                    await locale.setLanguage(code);
+                    if (sheetContext.mounted) Navigator.pop(sheetContext);
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? AppTheme.primary.withOpacity(.10)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: selected
+                            ? AppTheme.primary
+                            : const Color(0xFFDADFEA),
+                        width: selected ? 1.6 : 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            LocaleProvider.names[code] ?? code,
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              color: selected
+                                  ? AppTheme.primary
+                                  : AppTheme.textDark,
+                            ),
+                          ),
+                        ),
+                        if (selected)
+                          const Icon(Icons.check_circle_rounded,
+                              color: AppTheme.primary),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 /// Shown on first launch so the collector picks their language. The choice is
 /// persisted; this screen won't appear again unless storage is cleared.
 class LanguagePickerScreen extends StatefulWidget {
