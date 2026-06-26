@@ -223,12 +223,15 @@
         <div class="card-head">
           <div>
             <h3 style="margin-bottom:4px">Payment rates</h3>
-            <small>Amount paid per entry and the one-time training fee (₹).</small>
+            <small>Amount paid per usual entry, approved card entry, and training (₹).</small>
           </div>
         </div>
         <div class="rate-row">
           <label>Per entry ₹
             <input type="number" id="rate-per-entry" min="0" step="1" />
+          </label>
+          <label>Card entry ₹
+            <input type="number" id="rate-card-entry" min="0" step="1" />
           </label>
           <label>Training ₹
             <input type="number" id="rate-training" min="0" step="1" />
@@ -241,14 +244,33 @@
       <section class="card">
         <div class="card-head">
           <h3>Collector payouts</h3>
-          <small>Due = unpaid entries × rate (+ training if unpaid).</small>
+          <small>Due = usual unpaid × rate + approved card unpaid × card rate (+ training if unpaid).</small>
         </div>
         <div class="table-wrap">
           <table id="payments-table">
             <thead>
               <tr>
-                <th>Collector</th><th>UPI</th><th>Total</th><th>Unpaid</th>
-                <th>Training</th><th>Due</th><th>Last payout</th><th></th>
+                <th>Collector</th><th>UPI</th><th>Total</th><th>Usual unpaid</th>
+                <th>Approved cards</th><th>Pending cards</th><th>Training</th>
+                <th>Due</th><th>Last payout</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>Card approvals</h3>
+          <small>Approve verified card entries before card-rate payment is added.</small>
+        </div>
+        <div class="table-wrap">
+          <table id="card-approvals-table">
+            <thead>
+              <tr>
+                <th>Submitted</th><th>Collector</th><th>Child</th><th>Phone</th>
+                <th>Card</th><th></th>
               </tr>
             </thead>
             <tbody></tbody>

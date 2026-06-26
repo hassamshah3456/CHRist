@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -20,18 +22,31 @@ class _PaymentScreenState extends State<PaymentScreen> {
   Map<String, dynamic>? _data;
   bool _loading = true;
   String? _error;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _load(silent: true),
+    );
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final api = context.read<CollectionProvider>().api;
       final res = await api.get('/collections/payment');
@@ -39,9 +54,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
       setState(() {
         _data = (res as Map).cast<String, dynamic>();
         _loading = false;
+        _error = null;
       });
     } catch (_) {
       if (!mounted) return;
+      if (silent) return;
       setState(() {
         _error = 'Could not load payments. Check your connection.';
         _loading = false;
@@ -78,9 +95,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final d = _data!;
     final cur = (d['currency'] ?? '₹') as String;
     final perEntry = (d['per_entry'] ?? 0) as num;
+    final cardEntry = (d['card_entry'] ?? 0) as num;
     final training = (d['training'] ?? 0) as num;
     final total = (d['total_entries'] ?? 0) as num;
     final unpaid = (d['unpaid_entries'] ?? 0) as num;
+    final regularUnpaid = (d['regular_unpaid_entries'] ?? unpaid) as num;
+    final approvedCardUnpaid =
+        (d['approved_card_unpaid_entries'] ?? 0) as num;
+    final pendingCard = (d['pending_card_entries'] ?? 0) as num;
     final due = (d['due'] ?? 0) as num;
     final trainingPaid = (d['training_paid'] ?? false) as bool;
     final last = d['last_payout'] as Map?;
@@ -102,9 +124,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       fontWeight: FontWeight.w800,
                       color: AppTheme.primary)),
               const SizedBox(height: 4),
-              Text('$unpaid entr${unpaid == 1 ? 'y' : 'ies'} since last payout'
-                  '${trainingPaid ? '' : ' + training'}',
-                  style: const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+              Text(
+                '$unpaid payable entr${unpaid == 1 ? 'y' : 'ies'}'
+                '${pendingCard > 0 ? ' · $pendingCard card pending approval' : ''}'
+                '${trainingPaid ? '' : ' · training pending'}',
+                style: const TextStyle(
+                    color: AppTheme.textMuted, fontSize: 13),
+              ),
             ],
           ),
         ),
@@ -117,8 +143,32 @@ class _PaymentScreenState extends State<PaymentScreen> {
             const SizedBox(width: 12),
             Expanded(
                 child: _MiniStat(
-                    label: context.t('rate_per_entry'), value: _money(cur, perEntry))),
+                    label: context.t('rate_per_entry'),
+                    value: _money(cur, perEntry))),
           ],
+        ),
+        const SizedBox(height: 14),
+        _MiniStat(label: 'Card rate', value: _money(cur, cardEntry)),
+        const SizedBox(height: 14),
+        SectionCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Entry breakdown',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, color: AppTheme.textDark)),
+              const SizedBox(height: 8),
+              _BreakdownRow(
+                  label: 'Usual entries payable',
+                  value: '$regularUnpaid × ${_money(cur, perEntry)}'),
+              _BreakdownRow(
+                  label: 'Approved card entries',
+                  value: '$approvedCardUnpaid × ${_money(cur, cardEntry)}'),
+              _BreakdownRow(
+                  label: 'Cards waiting for admin approval',
+                  value: '$pendingCard'),
+            ],
+          ),
         ),
         const SizedBox(height: 14),
         SectionCard(
@@ -166,7 +216,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       child: Text(
                         'Paid ${_money(cur, (last['amount'] ?? 0) as num)} '
                         'on ${_fmtDate(last['created_at'] as String?)} '
-                        '(${last['entries_count']} entries)',
+                        '(${last['entries_count'] ?? 0} usual, '
+                        '${last['card_entries_count'] ?? 0} card)',
                         style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             color: AppTheme.textDark),
@@ -188,6 +239,30 @@ class _PaymentScreenState extends State<PaymentScreen> {
     } catch (_) {
       return iso;
     }
+  }
+}
+
+class _BreakdownRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _BreakdownRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(label,
+                style: const TextStyle(color: AppTheme.textMuted)),
+          ),
+          Text(value,
+              style: const TextStyle(
+                  color: AppTheme.textDark, fontWeight: FontWeight.w700)),
+        ],
+      ),
+    );
   }
 }
 

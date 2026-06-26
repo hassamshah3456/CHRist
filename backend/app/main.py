@@ -38,8 +38,12 @@ def _ensure_columns():
     # are added nullable (safe for backfilling an already-populated table).
     not_null_defaults = {
         "paid": "0",
+        "card_submitted": "0",
+        "card_approved": "0",
         "training_paid": "0",
         "app_seconds": "0",
+        "card_entries_count": "0",
+        "card_per_entry": "0",
     }
     inspector = inspect(engine)
     prep = engine.dialect.identifier_preparer
@@ -72,6 +76,17 @@ def _ensure_columns():
 
 
 _ensure_columns()
+
+try:
+    with engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE collections SET card_submitted = 1 "
+            "WHERE medical_record_photo IS NOT NULL "
+            "AND medical_record_photo != '' "
+            "AND card_submitted = 0"
+        ))
+except Exception:
+    pass
 
 # Ensure the media directory exists for uploaded photos.
 os.makedirs(settings.MEDIA_DIR, exist_ok=True)

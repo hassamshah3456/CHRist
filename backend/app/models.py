@@ -104,6 +104,10 @@ class Collection(Base):
     medical_record = Column(Boolean, nullable=True)            # has a medical record
     medical_record_photo = Column(String(255), nullable=True)  # uploaded photo
     vaccines = Column(String(64), nullable=True)               # CSV: opv,ipv,none
+    # Payment approval: entries with a card/photo earn the card rate after an
+    # admin verifies the card in the dashboard.
+    card_submitted = Column(Boolean, nullable=False, default=False, index=True)
+    card_approved = Column(Boolean, nullable=False, default=False, index=True)
 
     # Location captured when the collection was started
     location_lat = Column(Float, nullable=True)
@@ -192,6 +196,8 @@ class Payout(Base):
     amount = Column(Float, nullable=False, default=0)
     entries_count = Column(Integer, nullable=False, default=0)
     per_entry = Column(Float, nullable=False, default=0)
+    card_entries_count = Column(Integer, nullable=False, default=0)
+    card_per_entry = Column(Float, nullable=False, default=0)
     training_included = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
 

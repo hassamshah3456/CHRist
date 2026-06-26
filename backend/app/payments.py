@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from . import models
 
 PER_ENTRY_KEY = "payment_per_entry"
+CARD_ENTRY_KEY = "payment_card_entry"
 TRAINING_KEY = "payment_training"
 CURRENCY = "₹"
 
@@ -41,13 +42,18 @@ def get_config(db: Session) -> dict:
 
     return {
         "per_entry": _num(PER_ENTRY_KEY),
+        "card_entry": _num(CARD_ENTRY_KEY),
         "training": _num(TRAINING_KEY),
         "currency": CURRENCY,
     }
 
 
-def set_config(db: Session, per_entry: float, training: float) -> None:
-    for key, val in ((PER_ENTRY_KEY, per_entry), (TRAINING_KEY, training)):
+def set_config(db: Session, per_entry: float, training: float, card_entry: float = 0) -> None:
+    for key, val in (
+        (PER_ENTRY_KEY, per_entry),
+        (CARD_ENTRY_KEY, card_entry),
+        (TRAINING_KEY, training),
+    ):
         row = db.query(models.Setting).filter(models.Setting.key == key).first()
         if row is None:
             db.add(models.Setting(key=key, value=str(val)))
@@ -70,16 +76,45 @@ def collector_due(db: Session, user: models.User, cfg: dict) -> dict:
     total = db.query(models.Collection).filter(
         models.Collection.user_id == user.id
     ).count()
-    unpaid = db.query(models.Collection).filter(
+    regular_unpaid = db.query(models.Collection).filter(
         models.Collection.user_id == user.id,
         models.Collection.paid == False,  # noqa: E712
+        models.Collection.card_submitted == False,  # noqa: E712
     ).count()
-    due = unpaid * cfg["per_entry"]
+    approved_card_unpaid = db.query(models.Collection).filter(
+        models.Collection.user_id == user.id,
+        models.Collection.paid == False,  # noqa: E712
+        models.Collection.card_submitted == True,  # noqa: E712
+        models.Collection.card_approved == True,  # noqa: E712
+    ).count()
+    pending_card = db.query(models.Collection).filter(
+        models.Collection.user_id == user.id,
+        models.Collection.paid == False,  # noqa: E712
+        models.Collection.card_submitted == True,  # noqa: E712
+        models.Collection.card_approved == False,  # noqa: E712
+    ).count()
+    approved_card_total = db.query(models.Collection).filter(
+        models.Collection.user_id == user.id,
+        models.Collection.card_submitted == True,  # noqa: E712
+        models.Collection.card_approved == True,  # noqa: E712
+    ).count()
+    card_total = db.query(models.Collection).filter(
+        models.Collection.user_id == user.id,
+        models.Collection.card_submitted == True,  # noqa: E712
+    ).count()
+
+    unpaid = regular_unpaid + approved_card_unpaid
+    due = regular_unpaid * cfg["per_entry"] + approved_card_unpaid * cfg["card_entry"]
     if not user.training_paid:
         due += cfg["training"]
     return {
         "total_entries": total,
         "unpaid_entries": unpaid,
+        "regular_unpaid_entries": regular_unpaid,
+        "card_entries": card_total,
+        "approved_card_entries": approved_card_total,
+        "approved_card_unpaid_entries": approved_card_unpaid,
+        "pending_card_entries": pending_card,
         "due": round(due, 2),
         "training_paid": user.training_paid,
     }
@@ -90,20 +125,31 @@ def mark_paid(db: Session, user: models.User, cfg: dict) -> models.Payout:
     unpaid = db.query(models.Collection).filter(
         models.Collection.user_id == user.id,
         models.Collection.paid == False,  # noqa: E712
+        (
+            (models.Collection.card_submitted == False)  # noqa: E712
+            | (models.Collection.card_approved == True)  # noqa: E712
+        ),
     ).all()
-    count = len(unpaid)
+    regular_count = sum(1 for c in unpaid if not c.card_submitted)
+    card_count = sum(1 for c in unpaid if c.card_submitted and c.card_approved)
     for c in unpaid:
         c.paid = True
 
     training_included = not user.training_paid
-    amount = count * cfg["per_entry"] + (cfg["training"] if training_included else 0)
+    amount = (
+        regular_count * cfg["per_entry"]
+        + card_count * cfg["card_entry"]
+        + (cfg["training"] if training_included else 0)
+    )
     user.training_paid = True
 
     payout = models.Payout(
         user_id=user.id,
         amount=round(amount, 2),
-        entries_count=count,
+        entries_count=regular_count,
         per_entry=cfg["per_entry"],
+        card_entries_count=card_count,
+        card_per_entry=cfg["card_entry"],
         training_included=training_included,
     )
     db.add(payout)

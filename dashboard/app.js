@@ -769,20 +769,24 @@ async function loadPayments() {
     const data = await api("/api/payments");
     payCurrency = (data.config && data.config.currency) || "₹";
     $("#rate-per-entry").value = data.config ? data.config.per_entry : 0;
+    $("#rate-card-entry").value = data.config ? data.config.card_entry : 0;
     $("#rate-training").value = data.config ? data.config.training : 0;
     renderPayments(data.collectors || []);
+    await loadCardApprovals();
   } catch (e) { alert(e.message); }
 }
 
 function renderPayments(rows) {
   const tbody = $("#payments-table tbody");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">No collectors yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">No collectors yet.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((r) => {
     const last = r.last_payout
       ? `${fmtMoney(r.last_payout.amount)} · ${fmtDate(r.last_payout.created_at)}`
+        + ` · ${r.last_payout.entries_count || 0} usual`
+        + ` / ${r.last_payout.card_entries_count || 0} card`
       : "—";
     const training = r.training_paid
       ? `<span class="badge badge-yes">Paid</span>`
@@ -791,7 +795,9 @@ function renderPayments(rows) {
       <td>${escapeHtml(r.name)}</td>
       <td>${escapeHtml(r.upi_address || "—")}</td>
       <td>${r.total_entries}</td>
-      <td>${r.unpaid_entries}</td>
+      <td>${r.regular_unpaid_entries || 0}</td>
+      <td>${r.approved_card_unpaid_entries || 0}</td>
+      <td>${r.pending_card_entries || 0}</td>
       <td>${training}</td>
       <td><b>${fmtMoney(r.due)}</b></td>
       <td>${last}</td>
@@ -805,14 +811,65 @@ function renderPayments(rows) {
       markPaid(b.dataset.pay, b.dataset.name, b.dataset.due)));
 }
 
+async function loadCardApprovals() {
+  const tbody = $("#card-approvals-table tbody");
+  if (!tbody) return;
+  const rows = await api("/api/card-approvals");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">No card entries waiting for approval.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map((r) => `
+    <tr>
+      <td>${fmtDate(r.collected_at)}</td>
+      <td>${escapeHtml(r.collector_name || "—")}<br><small>${escapeHtml(r.collector_email || "")}</small></td>
+      <td>${escapeHtml(r.child_name || "—")}</td>
+      <td>${escapeHtml(r.phone || "—")}</td>
+      <td><button class="cancel card-view-btn" data-photo="${escapeHtml(r.medical_record_photo || "")}"
+        data-id="${r.id}" data-name="${escapeHtml(r.child_name || r.collector_name || "entry")}">View card</button></td>
+      <td><button class="btn-primary card-approve-btn" data-approve-card="${r.id}">Approve</button></td>
+    </tr>`).join("");
+  tbody.querySelectorAll("[data-photo]").forEach((b) =>
+    b.addEventListener("click", () =>
+      openCardApproval(b.dataset.id, b.dataset.photo, b.dataset.name)));
+  tbody.querySelectorAll("[data-approve-card]").forEach((b) =>
+    b.addEventListener("click", () => approveCard(b.dataset.approveCard)));
+}
+
+function openCardApproval(id, photo, name) {
+  const img = photo ? `<img class="ans-photo" id="card-approval-img" alt="card loading…"/>`
+    : `<p class="hint">No card photo found for this entry.</p>`;
+  openModal(`<h3>Card approval</h3>
+    <p class="hint">${escapeHtml(name || "Entry")}</p>
+    ${img}
+    <div class="modal-actions">
+      <button class="cancel" id="card-close">Close</button>
+      <button class="btn-primary" id="card-approve">Approve card</button>
+    </div>`);
+  $("#card-close").addEventListener("click", closeModal);
+  $("#card-approve").addEventListener("click", async () => {
+    await approveCard(id);
+    closeModal();
+  });
+  if (photo) loadPhoto(photo, $("#card-approval-img"));
+}
+
+async function approveCard(id) {
+  try {
+    await api(`/api/collections/${id}/approve-card`, { method: "POST" });
+    await loadPayments();
+  } catch (e) { alert(e.message); }
+}
+
 async function saveRates() {
   const per_entry = parseFloat($("#rate-per-entry").value) || 0;
+  const card_entry = parseFloat($("#rate-card-entry").value) || 0;
   const training = parseFloat($("#rate-training").value) || 0;
   try {
     await api("/api/payment-config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ per_entry, training }),
+      body: JSON.stringify({ per_entry, card_entry, training }),
     });
     $("#rates-saved").textContent = "Saved ✓";
     setTimeout(() => { $("#rates-saved").textContent = ""; }, 2000);

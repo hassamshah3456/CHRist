@@ -90,6 +90,7 @@ class Collection {
         'medical_record': medicalRecord,
         'vaccines': vaccines,
         'medical_record_photo': medicalRecordPhotoFilename,
+        'card_submitted': medicalRecordPhotoFilename != null,
         'location_lat': locationLat,
         'location_lng': locationLng,
         'location_address': locationAddress,

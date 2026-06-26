@@ -269,6 +269,8 @@ def admin_collections(
             responder_other=c.responder_other,
             medical_record=c.medical_record,
             medical_record_photo=c.medical_record_photo,
+            card_submitted=c.card_submitted,
+            card_approved=c.card_approved,
             vaccines=c.vaccines,
             location_lat=c.location_lat,
             location_lng=c.location_lng,
@@ -436,7 +438,8 @@ def export_csv(
     base_cols = [
         "id", "collected_at", "collector_name", "collector_email",
         "phone", "verbal_consent", "child_name", "child_age", "child_age_months", "child_sex", "responder",
-        "responder_other", "medical_record", "vaccines",
+        "responder_other", "medical_record", "medical_record_photo",
+        "card_submitted", "card_approved", "vaccines",
         "location_lat", "location_lng", "location_address",
     ]
 
@@ -459,6 +462,9 @@ def export_csv(
             c.responder or "",
             c.responder_other or "",
             "yes" if c.medical_record else ("no" if c.medical_record is not None else ""),
+            c.medical_record_photo or "",
+            "yes" if c.card_submitted else "no",
+            "yes" if c.card_approved else "no",
             c.vaccines or "",
             c.location_lat if c.location_lat is not None else "",
             c.location_lng if c.location_lng is not None else "",
@@ -528,7 +534,10 @@ def update_instructions(
 # ---------- Payments ----------
 def _payment_config_schema(cfg: dict) -> schemas.PaymentConfig:
     return schemas.PaymentConfig(
-        per_entry=cfg["per_entry"], training=cfg["training"], currency=cfg["currency"]
+        per_entry=cfg["per_entry"],
+        card_entry=cfg["card_entry"],
+        training=cfg["training"],
+        currency=cfg["currency"],
     )
 
 
@@ -549,7 +558,13 @@ def payments_overview(
             upi_address=u.upi_address, upi_name=u.upi_name,
             total_entries=due["total_entries"],
             unpaid_entries=due["unpaid_entries"],
-            per_entry=cfg["per_entry"], training=cfg["training"],
+            regular_unpaid_entries=due["regular_unpaid_entries"],
+            card_entries=due["card_entries"],
+            approved_card_entries=due["approved_card_entries"],
+            approved_card_unpaid_entries=due["approved_card_unpaid_entries"],
+            pending_card_entries=due["pending_card_entries"],
+            per_entry=cfg["per_entry"], card_entry=cfg["card_entry"],
+            training=cfg["training"],
             training_paid=due["training_paid"], due=due["due"],
             currency=cfg["currency"], last_payout=last,
         ))
@@ -563,8 +578,102 @@ def update_payment_config(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    payments.set_config(db, body.per_entry, body.training)
+    payments.set_config(db, body.per_entry, body.training, body.card_entry)
     return _payment_config_schema(payments.get_config(db))
+
+
+@router.get("/card-approvals", response_model=List[schemas.AdminCollectionOut])
+def card_approvals(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Card/photo entries waiting for admin approval before card-rate payout."""
+    rows = (
+        db.query(models.Collection, models.User)
+        .join(models.User, models.Collection.user_id == models.User.id)
+        .filter(
+            models.Collection.paid == False,  # noqa: E712
+            models.Collection.card_submitted == True,  # noqa: E712
+            models.Collection.card_approved == False,  # noqa: E712
+        )
+        .order_by(models.Collection.collected_at.desc())
+        .all()
+    )
+    return [
+        schemas.AdminCollectionOut(
+            id=c.id,
+            user_id=c.user_id,
+            collector_name=c.collector_name,
+            collector_email=u.email,
+            verbal_consent=c.verbal_consent,
+            phone=c.phone,
+            child_name=c.child_name,
+            child_age=c.child_age,
+            child_age_months=c.child_age_months,
+            child_sex=c.child_sex,
+            responder=c.responder,
+            responder_other=c.responder_other,
+            medical_record=c.medical_record,
+            medical_record_photo=c.medical_record_photo,
+            card_submitted=c.card_submitted,
+            card_approved=c.card_approved,
+            vaccines=c.vaccines,
+            location_lat=c.location_lat,
+            location_lng=c.location_lng,
+            location_address=c.location_address,
+            collected_at=c.collected_at,
+            answers=[],
+        )
+        for c, u in rows
+    ]
+
+
+@router.post("/collections/{collection_id}/approve-card", response_model=schemas.AdminCollectionOut)
+def approve_card_entry(
+    collection_id: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    row = (
+        db.query(models.Collection, models.User)
+        .join(models.User, models.Collection.user_id == models.User.id)
+        .filter(models.Collection.id == collection_id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(404, "Collection not found.")
+    c, u = row
+    if not c.card_submitted:
+        raise HTTPException(400, "This entry has no submitted card.")
+    if c.paid:
+        raise HTTPException(400, "This entry has already been settled.")
+    c.card_approved = True
+    db.commit()
+    db.refresh(c)
+    return schemas.AdminCollectionOut(
+        id=c.id,
+        user_id=c.user_id,
+        collector_name=c.collector_name,
+        collector_email=u.email,
+        verbal_consent=c.verbal_consent,
+        phone=c.phone,
+        child_name=c.child_name,
+        child_age=c.child_age,
+        child_age_months=c.child_age_months,
+        child_sex=c.child_sex,
+        responder=c.responder,
+        responder_other=c.responder_other,
+        medical_record=c.medical_record,
+        medical_record_photo=c.medical_record_photo,
+        card_submitted=c.card_submitted,
+        card_approved=c.card_approved,
+        vaccines=c.vaccines,
+        location_lat=c.location_lat,
+        location_lng=c.location_lng,
+        location_address=c.location_address,
+        collected_at=c.collected_at,
+        answers=[],
+    )
 
 
 @router.post("/collectors/{user_id}/pay", response_model=schemas.PayoutOut)

@@ -134,6 +134,7 @@ class CollectionIn(BaseModel):
     responder_other: Optional[str] = None
     medical_record: Optional[bool] = None
     medical_record_photo: Optional[str] = None
+    card_submitted: bool = False
     vaccines: Optional[str] = None
     location_lat: Optional[float] = None
     location_lng: Optional[float] = None
@@ -154,6 +155,8 @@ class CollectionOut(BaseModel):
     responder_other: Optional[str] = None
     medical_record: Optional[bool] = None
     medical_record_photo: Optional[str] = None
+    card_submitted: bool = False
+    card_approved: bool = False
     vaccines: Optional[str] = None
     location_lat: Optional[float] = None
     location_lng: Optional[float] = None
@@ -280,6 +283,8 @@ class AdminCollectionOut(BaseModel):
     responder_other: Optional[str] = None
     medical_record: Optional[bool] = None
     medical_record_photo: Optional[str] = None
+    card_submitted: bool = False
+    card_approved: bool = False
     vaccines: Optional[str] = None
     location_lat: Optional[float] = None
     location_lng: Optional[float] = None
@@ -304,6 +309,7 @@ class InstructionsMulti(BaseModel):
 class PaymentConfig(BaseModel):
     """Admin-configurable payout rates (currency is informational)."""
     per_entry: float = 0
+    card_entry: float = 0
     training: float = 0
     currency: str = "₹"
 
@@ -312,6 +318,8 @@ class PayoutOut(BaseModel):
     amount: float
     entries_count: int
     per_entry: float
+    card_entries_count: int = 0
+    card_per_entry: float = 0
     training_included: bool
     created_at: datetime
 
@@ -328,7 +336,13 @@ class CollectorPayment(BaseModel):
     upi_name: Optional[str] = None
     total_entries: int
     unpaid_entries: int
+    regular_unpaid_entries: int = 0
+    card_entries: int = 0
+    approved_card_entries: int = 0
+    approved_card_unpaid_entries: int = 0
+    pending_card_entries: int = 0
     per_entry: float
+    card_entry: float
     training: float
     training_paid: bool
     due: float                  # unpaid_entries*per_entry (+ training if unpaid)
@@ -345,9 +359,15 @@ class MyPayment(BaseModel):
     """Payment summary shown to a collector in the app."""
     currency: str = "₹"
     per_entry: float
+    card_entry: float
     training: float
     total_entries: int
     unpaid_entries: int
+    regular_unpaid_entries: int = 0
+    card_entries: int = 0
+    approved_card_entries: int = 0
+    approved_card_unpaid_entries: int = 0
+    pending_card_entries: int = 0
     due: float
     training_paid: bool
     last_payout: Optional[PayoutOut] = None
