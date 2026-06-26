@@ -6,6 +6,7 @@
 const API = "";
 const TOKEN_KEY = "uw_token";
 const USER_KEY = "uw_user";
+const GEOCODE_CACHE_KEY = "uw_geocode_cache";
 
 const $ = (sel) => document.querySelector(sel);
 const charts = {};
@@ -66,14 +67,105 @@ function fmtDuration(seconds) {
   return `${mins}m`;
 }
 function collectorLocation(c) {
-  return c.last_address
-    || (c.last_lat != null ? `${c.last_lat.toFixed(4)}, ${c.last_lng.toFixed(4)}` : "—");
+  return displayLocation(c.last_address, c.last_lat, c.last_lng);
 }
 function googleMapsUrl(lat, lng) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
 }
+function coordinatesKey(lat, lng) {
+  if (lat == null || lng == null) return "";
+  return `${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}`;
+}
+function loadGeocodeCache() {
+  try {
+    return JSON.parse(localStorage.getItem(GEOCODE_CACHE_KEY) || "{}");
+  } catch (e) {
+    return {};
+  }
+}
+const geocodeCache = loadGeocodeCache();
+const geocodePending = new Map();
+let nominatimQueue = Promise.resolve();
+
+function saveGeocodeCache() {
+  try { localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(geocodeCache)); } catch (e) {}
+}
+function queuedNominatimFetch(url) {
+  const run = nominatimQueue.then(() =>
+    fetch(url).finally(() => new Promise((resolve) => setTimeout(resolve, 1100))));
+  nominatimQueue = run.catch(() => {});
+  return run;
+}
+function addressFromBigDataCloud(data) {
+  const parts = [
+    data.locality,
+    data.city,
+    data.postcode,
+    data.principalSubdivision,
+    data.countryName,
+  ].filter(Boolean);
+  return [...new Set(parts)].join(", ");
+}
+async function reverseGeocode(lat, lng) {
+  const key = coordinatesKey(lat, lng);
+  if (!key) return "";
+  if (geocodeCache[key]) return geocodeCache[key];
+  if (geocodePending.has(key)) return geocodePending.get(key);
+
+  const nominatimUrl = "https://nominatim.openstreetmap.org/reverse"
+    + `?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=18&addressdetails=1`;
+  const fallbackUrl = "https://api.bigdatacloud.net/data/reverse-geocode-client"
+    + `?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lng)}&localityLanguage=en`;
+  const pending = queuedNominatimFetch(nominatimUrl)
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => data && data.display_name ? data.display_name : "")
+    .then((address) => {
+      if (address) return address;
+      return fetch(fallbackUrl)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => data ? addressFromBigDataCloud(data) : "");
+    })
+    .then((address) => {
+      if (address) {
+        geocodeCache[key] = address;
+        saveGeocodeCache();
+      }
+      return address;
+    })
+    .catch(() => "")
+    .finally(() => geocodePending.delete(key));
+  geocodePending.set(key, pending);
+  return pending;
+}
+function displayLocation(address, lat, lng, precision = 4) {
+  if (address) return address;
+  const cached = geocodeCache[coordinatesKey(lat, lng)];
+  if (cached) return cached;
+  return lat != null && lng != null
+    ? `${Number(lat).toFixed(precision)}, ${Number(lng).toFixed(precision)}`
+    : "—";
+}
+function locationSpan(address, lat, lng, precision = 4) {
+  if (lat == null || lng == null) return escapeHtml(address || "—");
+  return `<span class="js-address" data-lat="${lat}" data-lng="${lng}" data-precision="${precision}">
+    ${escapeHtml(displayLocation(address, lat, lng, precision))}
+  </span>`;
+}
+function hydrateAddressSpans(root = document) {
+  root.querySelectorAll(".js-address").forEach(async (el) => {
+    const lat = Number(el.dataset.lat);
+    const lng = Number(el.dataset.lng);
+    const precision = Number(el.dataset.precision || 4);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const current = displayLocation("", lat, lng, precision);
+    if (!el.textContent.trim() || el.textContent.trim() === current) {
+      const address = await reverseGeocode(lat, lng);
+      if (address && el.isConnected) el.textContent = address;
+    }
+  });
+}
 function locationCell(c) {
-  const label = escapeHtml(collectorLocation(c));
+  const label = locationSpan(c.last_address, c.last_lat, c.last_lng);
   if (c.last_lat == null || c.last_lng == null) return label;
   return `${label}<a class="map-link" href="${googleMapsUrl(c.last_lat, c.last_lng)}"
     target="_blank" rel="noopener">Google Maps ↗</a>`;
@@ -260,8 +352,6 @@ function renderPositivity(stats) {
 function _rowHtml(r, grouped) {
   const responder = r.responder === "other"
     ? (r.responder_other || "Other") : cap(r.responder);
-  const loc = r.location_address
-    || (r.location_lat != null ? `${r.location_lat.toFixed(4)}, ${r.location_lng.toFixed(4)}` : "—");
   return `<tr class="clickable ${grouped ? "grouped" : ""}" data-id="${r.id}">
     <td>${fmtDate(r.collected_at)}</td>
     <td>${escapeHtml(r.collector_name || "—")}</td>
@@ -271,7 +361,7 @@ function _rowHtml(r, grouped) {
     <td>${cap(r.child_sex)}</td>
     <td>${escapeHtml(responder)}</td>
     <td><span class="badge ${r.verbal_consent ? "badge-yes" : "badge-no"}">${r.verbal_consent ? "Yes" : "No"}</span></td>
-    <td>${escapeHtml(loc)}</td>
+    <td>${locationSpan(r.location_address, r.location_lat, r.location_lng)}</td>
   </tr>`;
 }
 
@@ -306,6 +396,7 @@ function renderCollections(rows) {
   });
   singles.forEach((r) => { html += _rowHtml(r, false); });
   tbody.innerHTML = html;
+  hydrateAddressSpans(tbody);
 }
 
 function renderCollectors(rows) {
@@ -325,6 +416,7 @@ function renderCollectors(rows) {
       <td>${locationCell(c)}</td>
       <td>${fmtDuration(c.app_seconds)}</td>
     </tr>`).join("");
+  hydrateAddressSpans(tbody);
 }
 
 /* ---------- map ---------- */
@@ -535,6 +627,7 @@ async function openGroup(id, manageRefresh = true) {
       <td>${locationCell(c)}</td>
       <td>${fmtDuration(c.app_seconds)}</td>
     </tr>`).join("");
+  hydrateAddressSpans(tbody);
 }
 
 function clearGroupDetail() {
@@ -955,7 +1048,7 @@ function openSubmission(id) {
     <div class="ans-row"><div class="ans-q">Child</div><div class="ans-v">${escapeHtml(r.child_name || "—")} · Age ${fmtAge(r.child_age, r.child_age_months)} · ${cap(r.child_sex)} · Responder: ${escapeHtml(responder)}</div></div>
     <div class="ans-row"><div class="ans-q">Verbal consent</div><div class="ans-v"><span class="${r.verbal_consent ? "yes" : "no"}">${r.verbal_consent ? "Yes" : "No"}</span></div></div>
     <div class="ans-row"><div class="ans-q">Medical record</div><div class="ans-v">${r.medical_record == null ? "—" : `<span class="${r.medical_record ? "yes" : "no"}">${r.medical_record ? "Yes" : "No"}</span>`} · Vaccines: ${fmtVaccines(r.vaccines)}${r.medical_record_photo ? `<br><img class="ans-photo" id="medph" alt="medical record loading…"/>` : ""}</div></div>
-    <div class="ans-row"><div class="ans-q">Location</div><div class="ans-v">${escapeHtml(r.location_address || (r.location_lat != null ? r.location_lat.toFixed(5) + ", " + r.location_lng.toFixed(5) : "—"))}</div></div>`;
+    <div class="ans-row"><div class="ans-q">Location</div><div class="ans-v">${locationSpan(r.location_address, r.location_lat, r.location_lng, 5)}</div></div>`;
 
   const answers = r.answers || [];
   if (answers.length) {
@@ -976,6 +1069,7 @@ function openSubmission(id) {
   }
   html += `<div class="modal-actions"><button class="cancel" id="sub-close">Close</button></div>`;
   openModal(html);
+  hydrateAddressSpans($("#modal"));
   $("#sub-close").addEventListener("click", closeModal);
   answers.forEach((a, i) => { if (a.photo_filename) loadPhoto(a.photo_filename, $("#ph-" + i)); });
   if (r.medical_record_photo) loadPhoto(r.medical_record_photo, $("#medph"));

@@ -1,4 +1,4 @@
-# UsmleWise CHRIST
+# UsmleWise CRIST
 
 A field **data-collection app** (Flutter, Android + iOS) backed by a **FastAPI**
 server. Collectors register, capture child/responder data with verbal consent,
