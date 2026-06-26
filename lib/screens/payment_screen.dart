@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../i18n/app_localizations.dart';
 import '../providers/collection_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
@@ -53,7 +54,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My Payments')),
+      appBar: AppBar(title: Text(context.t('my_payments_title'))),
       body: SafeArea(
         child: RefreshIndicator(
           onRefresh: _load,
@@ -92,7 +93,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Due now',
+              Text(context.t('due_now'),
                   style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
               const SizedBox(height: 4),
               Text(_money(cur, due),
@@ -112,11 +113,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
           children: [
             Expanded(
                 child: _MiniStat(
-                    label: 'Total entries', value: '$total')),
+                    label: context.t('total_entries'), value: '$total')),
             const SizedBox(width: 12),
             Expanded(
                 child: _MiniStat(
-                    label: 'Rate / entry', value: _money(cur, perEntry))),
+                    label: context.t('rate_per_entry'), value: _money(cur, perEntry))),
           ],
         ),
         const SizedBox(height: 14),
@@ -124,7 +125,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Training fee',
+              Text(context.t('training_fee'),
                   style: TextStyle(
                       fontWeight: FontWeight.w700, color: AppTheme.textDark)),
               const SizedBox(height: 6),
@@ -135,7 +136,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           fontSize: 16, fontWeight: FontWeight.w700)),
                   const SizedBox(width: 10),
                   _Pill(
-                    text: trainingPaid ? 'Paid' : 'Pending',
+                    text: trainingPaid ? context.t('paid') : context.t('pending'),
                     color: trainingPaid ? AppTheme.success : AppTheme.danger,
                   ),
                 ],
@@ -148,12 +149,12 @@ class _PaymentScreenState extends State<PaymentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Last payout',
+              Text(context.t('last_payout'),
                   style: TextStyle(
                       fontWeight: FontWeight.w700, color: AppTheme.textDark)),
               const SizedBox(height: 8),
               if (last == null)
-                const Text('No payouts yet.',
+                Text(context.t('no_payouts'),
                     style: TextStyle(color: AppTheme.textMuted))
               else
                 Row(

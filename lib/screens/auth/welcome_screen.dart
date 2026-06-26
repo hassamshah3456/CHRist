@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../i18n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import 'login_screen.dart';
@@ -47,7 +48,7 @@ class WelcomeScreen extends StatelessWidget {
                     MaterialPageRoute(
                         builder: (_) => const RegisterScreen()),
                   ),
-                  child: const Text('Registration'),
+                  child: Text(context.t('registration')),
                 ),
                 const SizedBox(height: 14),
                 OutlinedButton(
@@ -58,7 +59,7 @@ class WelcomeScreen extends StatelessWidget {
                   onPressed: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const LoginScreen()),
                   ),
-                  child: const Text('Sign in'),
+                  child: Text(context.t('sign_in')),
                 ),
                 const SizedBox(height: 8),
               ],

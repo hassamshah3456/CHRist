@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../i18n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_client.dart';
 import '../../theme/app_theme.dart';
@@ -56,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sign in')),
+      appBar: AppBar(title: Text(context.t('sign_in'))),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
@@ -79,9 +80,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.mail_outline),
+                  decoration: InputDecoration(
+                    labelText: context.t('email'),
+                    prefixIcon: const Icon(Icons.mail_outline),
                   ),
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? 'Enter your email'
@@ -91,9 +92,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextFormField(
                   controller: _password,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: Icon(Icons.lock_outline),
+                  decoration: InputDecoration(
+                    labelText: context.t('password'),
+                    prefixIcon: const Icon(Icons.lock_outline),
                   ),
                   validator: (v) => (v == null || v.isEmpty)
                       ? 'Enter your password'
@@ -109,7 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: CircularProgressIndicator(
                               color: Colors.white, strokeWidth: 2.4),
                         )
-                      : const Text('Sign in'),
+                      : Text(context.t('sign_in')),
                 ),
               ],
             ),

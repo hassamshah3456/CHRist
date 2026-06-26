@@ -172,4 +172,60 @@ const Map<String, Map<String, String>> _strings = {
   'saving': {'en': 'Saving…', 'hi': 'सहेजा जा रहा है…', 'kn': 'ಉಳಿಸಲಾಗುತ್ತಿದೆ…'},
   'optional': {'en': 'optional', 'hi': 'वैकल्पिक', 'kn': 'ಐಚ್ಛಿಕ'},
   'required': {'en': 'required', 'hi': 'आवश्यक', 'kn': 'ಅಗತ್ಯವಿದೆ'},
+  // Auth
+  'registration': {'en': 'Registration', 'hi': 'पंजीकरण', 'kn': 'ನೋಂದಣಿ'},
+  'sign_in': {'en': 'Sign in', 'hi': 'साइन इन करें', 'kn': 'ಸೈನ್ ಇನ್ ಮಾಡಿ'},
+  'register': {'en': 'Register', 'hi': 'पंजीकरण करें', 'kn': 'ನೋಂದಾಯಿಸಿ'},
+  'full_name': {'en': 'Full name', 'hi': 'पूरा नाम', 'kn': 'ಪೂರ್ಣ ಹೆಸರು'},
+  'email': {'en': 'Email', 'hi': 'ईमेल', 'kn': 'ಇಮೇಲ್'},
+  'password': {'en': 'Password', 'hi': 'पासवर्ड', 'kn': 'ಪಾಸ್‌ವರ್ಡ್'},
+  'upi_id_optional': {
+    'en': 'UPI ID (optional)',
+    'hi': 'UPI आईडी (वैकल्पिक)',
+    'kn': 'UPI ಐಡಿ (ಐಚ್ಛಿಕ)',
+  },
+  'upi_holder_name': {
+    'en': 'UPI account holder name',
+    'hi': 'UPI खाताधारक का नाम',
+    'kn': 'UPI ಖಾತೆದಾರರ ಹೆಸರು',
+  },
+  // Payments
+  'my_payments_title': {
+    'en': 'My Payments',
+    'hi': 'मेरे भुगतान',
+    'kn': 'ನನ್ನ ಪಾವತಿಗಳು',
+  },
+  'due_now': {'en': 'Due now', 'hi': 'अभी देय', 'kn': 'ಈಗ ಬಾಕಿ'},
+  'total_entries': {
+    'en': 'Total entries',
+    'hi': 'कुल प्रविष्टियाँ',
+    'kn': 'ಒಟ್ಟು ನಮೂದುಗಳು',
+  },
+  'rate_per_entry': {
+    'en': 'Rate / entry',
+    'hi': 'दर / प्रविष्टि',
+    'kn': 'ದರ / ನಮೂದು',
+  },
+  'training_fee': {
+    'en': 'Training fee',
+    'hi': 'प्रशिक्षण शुल्क',
+    'kn': 'ತರಬೇತಿ ಶುಲ್ಕ',
+  },
+  'last_payout': {
+    'en': 'Last payout',
+    'hi': 'पिछला भुगतान',
+    'kn': 'ಕೊನೆಯ ಪಾವತಿ',
+  },
+  'no_payouts': {
+    'en': 'No payouts yet.',
+    'hi': 'अभी तक कोई भुगतान नहीं।',
+    'kn': 'ಇನ್ನೂ ಪಾವತಿಗಳಿಲ್ಲ.',
+  },
+  'paid': {'en': 'Paid', 'hi': 'भुगतान किया गया', 'kn': 'ಪಾವತಿಸಲಾಗಿದೆ'},
+  'pending': {'en': 'Pending', 'hi': 'लंबित', 'kn': 'ಬಾಕಿ ಇದೆ'},
+  'past_collections_title': {
+    'en': 'Collections',
+    'hi': 'संग्रह',
+    'kn': 'ಸಂಗ್ರಹಗಳು',
+  },
 };

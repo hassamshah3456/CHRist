@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_client.dart';
 import '../../services/location_service.dart';
+import '../../i18n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
 import '../dashboard_screen.dart';
@@ -81,7 +82,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Registration')),
+      appBar: AppBar(title: Text(context.t('registration'))),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
@@ -106,7 +107,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ],
                 _field(
                   controller: _name,
-                  label: 'Full name',
+                  label: context.t('full_name'),
                   icon: Icons.person_outline,
                   validator: (v) =>
                       (v == null || v.trim().isEmpty) ? 'Enter your name' : null,
@@ -114,7 +115,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 14),
                 _field(
                   controller: _email,
-                  label: 'Email',
+                  label: context.t('email'),
                   icon: Icons.mail_outline,
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
@@ -128,7 +129,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 14),
                 _field(
                   controller: _password,
-                  label: 'Password',
+                  label: context.t('password'),
                   icon: Icons.lock_outline,
                   obscure: true,
                   validator: (v) => (v == null || v.length < 6)
@@ -138,7 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 14),
                 _field(
                   controller: _upiAddress,
-                  label: 'UPI ID (optional)',
+                  label: context.t('upi_id_optional'),
                   icon: Icons.account_balance_wallet_outlined,
                 ),
                 const Padding(
@@ -165,7 +166,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   const SizedBox(height: 4),
                   _field(
                     controller: _upiName,
-                    label: 'UPI account holder name',
+                    label: context.t('upi_holder_name'),
                     icon: Icons.badge_outlined,
                     validator: (v) => _differentUpiName &&
                             (v == null || v.trim().isEmpty)
@@ -183,7 +184,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           child: CircularProgressIndicator(
                               color: Colors.white, strokeWidth: 2.4),
                         )
-                      : const Text('Register'),
+                      : Text(context.t('register')),
                 ),
               ],
             ),
