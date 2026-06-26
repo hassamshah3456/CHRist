@@ -17,13 +17,13 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _form = GlobalKey<FormState>();
-  final _phone = TextEditingController();
+  final _username = TextEditingController();
   final _password = TextEditingController();
   bool _submitting = false;
 
   @override
   void dispose() {
-    _phone.dispose();
+    _username.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -34,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _submitting = true);
     try {
       await context.read<AuthProvider>().login(
-            phone: _phone.text.trim(),
+            username: _username.text.trim(),
             password: _password.text,
           );
       if (!mounted) return;
@@ -72,20 +72,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 6),
-                const Text(
-                  'Sign in to continue collecting.',
-                  style: TextStyle(color: AppTheme.textMuted),
+                Text(
+                  context.t('sign_in_subtitle'),
+                  style: const TextStyle(color: AppTheme.textMuted),
                 ),
                 const SizedBox(height: 24),
                 TextFormField(
-                  controller: _phone,
-                  keyboardType: TextInputType.phone,
+                  controller: _username,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
                   decoration: InputDecoration(
-                    labelText: context.t('phone'),
-                    prefixIcon: const Icon(Icons.phone_outlined),
+                    labelText: context.t('email_or_phone'),
+                    hintText: 'you@example.com or 9876543210',
+                    prefixIcon: const Icon(Icons.person_outline),
                   ),
                   validator: (v) => (v == null || v.trim().isEmpty)
-                      ? context.t('enter_phone')
+                      ? context.t('enter_email_or_phone')
                       : null,
                 ),
                 const SizedBox(height: 14),

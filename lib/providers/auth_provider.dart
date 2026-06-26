@@ -74,12 +74,12 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> login({
-    required String phone,
+    required String username,
     required String password,
   }) async {
-    // OAuth2 login endpoint expects form fields username/password.
+    // OAuth2 login: username is email or phone (existing collectors may use either).
     final res = await api.postForm('/auth/login', {
-      'username': phone,
+      'username': username,
       'password': password,
     });
     await _onAuthSuccess(res);

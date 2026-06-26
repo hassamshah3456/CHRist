@@ -4,7 +4,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -65,20 +65,20 @@ def login(
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    # OAuth2PasswordRequestForm uses `username` — collectors pass phone,
-    # admins pass email.
+    # OAuth2PasswordRequestForm uses `username` — collectors may pass phone or
+    # email (legacy accounts registered with email).
     username = (form.username or "").strip()
     phone = _normalize_phone(username)
     user = db.query(models.User).filter(
         or_(
             models.User.phone == phone,
-            models.User.email == username,
+            func.lower(models.User.email) == username.lower(),
         )
     ).first()
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect phone or password.",
+            detail="Incorrect email, phone, or password.",
         )
 
     token = create_access_token(user.id)

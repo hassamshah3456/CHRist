@@ -179,6 +179,21 @@ const Map<String, Map<String, String>> _strings = {
   'full_name': {'en': 'Full name', 'hi': 'पूरा नाम', 'kn': 'ಪೂರ್ಣ ಹೆಸರು'},
   'email': {'en': 'Email', 'hi': 'ईमेल', 'kn': 'ಇಮೇಲ್'},
   'phone': {'en': 'Phone number', 'hi': 'फोन नंबर', 'kn': 'ಫೋನ್ ಸಂಖ್ಯೆ'},
+  'email_or_phone': {
+    'en': 'Email or phone number',
+    'hi': 'ईमेल या फोन नंबर',
+    'kn': 'ಇಮೇಲ್ ಅಥವಾ ಫೋನ್ ಸಂಖ್ಯೆ',
+  },
+  'enter_email_or_phone': {
+    'en': 'Enter your email or phone number',
+    'hi': 'अपना ईमेल या फोन नंबर दर्ज करें',
+    'kn': 'ನಿಮ್ಮ ಇಮೇಲ್ ಅಥವಾ ಫೋನ್ ಸಂಖ್ಯೆ ನಮೂದಿಸಿ',
+  },
+  'sign_in_subtitle': {
+    'en': 'Sign in with your email or phone number.',
+    'hi': 'अपने ईमेल या फोन नंबर से साइन इन करें।',
+    'kn': 'ನಿಮ್ಮ ಇಮೇಲ್ ಅಥವಾ ಫೋನ್ ಸಂಖ್ಯೆಯಿಂದ ಸೈನ್ ಇನ್ ಮಾಡಿ.',
+  },
   'enter_phone': {
     'en': 'Enter your phone number',
     'hi': 'अपना फोन नंबर दर्ज करें',
