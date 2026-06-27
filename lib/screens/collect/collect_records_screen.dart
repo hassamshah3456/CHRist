@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,6 +7,7 @@ import '../../providers/collection_provider.dart';
 import '../../services/location_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/local_image.dart';
 import 'step_indicator.dart';
 
 /// Step 4: review everything captured, then save the collection.
@@ -158,8 +157,8 @@ class _CollectRecordsScreenState extends State<CollectRecordsScreen> {
                             const SizedBox(height: 8),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10),
-                              child: Image.file(
-                                  File(widget.medicalRecordPhotoPath!),
+                              child: LocalImage(
+                                  path: widget.medicalRecordPhotoPath!,
                                   height: 130,
                                   width: double.infinity,
                                   fit: BoxFit.cover),
@@ -313,7 +312,7 @@ class _AnswerRow extends StatelessWidget {
             const SizedBox(height: 6),
             ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.file(File(answer.photoLocalPath!),
+              child: LocalImage(path: answer.photoLocalPath!,
                   height: 120, width: double.infinity, fit: BoxFit.cover),
             ),
           ],

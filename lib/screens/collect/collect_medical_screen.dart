@@ -1,15 +1,13 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/answer.dart';
 import '../../services/location_service.dart';
+import '../../services/photo_storage.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/local_image.dart';
 import 'collect_records_screen.dart';
 import 'step_indicator.dart';
 
@@ -77,10 +75,8 @@ class _CollectMedicalScreenState extends State<CollectMedicalScreen> {
       final x = await ImagePicker()
           .pickImage(source: source, imageQuality: 70, maxWidth: 1600);
       if (x == null) return;
-      final dir = await getApplicationDocumentsDirectory();
-      final dest = p.join(dir.path, 'medrec_${_uuid.v4()}${p.extension(x.path)}');
-      await File(x.path).copy(dest);
-      if (mounted) setState(() => _photoPath = dest);
+      final stored = await storePickedPhoto(x, _uuid);
+      if (mounted) setState(() => _photoPath = stored);
     } catch (_) {
       if (mounted) showSnack(context, 'Could not capture photo.', error: true);
     }
@@ -164,7 +160,7 @@ class _CollectMedicalScreenState extends State<CollectMedicalScreen> {
                       if (_photoPath != null)
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.file(File(_photoPath!),
+                          child: LocalImage(path: _photoPath!,
                               height: 160,
                               width: double.infinity,
                               fit: BoxFit.cover),

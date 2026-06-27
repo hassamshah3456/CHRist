@@ -1,9 +1,5 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 
@@ -13,9 +9,11 @@ import '../../models/question.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/collection_provider.dart';
 import '../../services/location_service.dart';
+import '../../services/photo_storage.dart';
 import '../../services/questionnaire_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/local_image.dart';
 
 /// The entire collection on one scrollable form: child age, who is carrying
 /// the child, the dynamic screening questions, an optional medical-record
@@ -138,15 +136,13 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
       final x = await ImagePicker()
           .pickImage(source: source, imageQuality: 70, maxWidth: 1600);
       if (x == null) return;
-      final dir = await getApplicationDocumentsDirectory();
-      final dest = p.join(dir.path, 'photo_${_uuid.v4()}${p.extension(x.path)}');
-      await File(x.path).copy(dest);
+      final stored = await storePickedPhoto(x, _uuid);
       if (!mounted) return;
       setState(() {
         if (qid == null) {
-          _medicalPhoto = dest;
+          _medicalPhoto = stored;
         } else {
-          _photos[qid] = dest;
+          _photos[qid] = stored;
         }
       });
     } catch (_) {
@@ -398,7 +394,7 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
                         if (_medicalPhoto != null) ...[
                           ClipRRect(
                             borderRadius: BorderRadius.circular(12),
-                            child: Image.file(File(_medicalPhoto!),
+                            child: LocalImage(path: _medicalPhoto!,
                                 height: 150,
                                 width: double.infinity,
                                 fit: BoxFit.cover),
@@ -618,7 +614,7 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
           if (_photos[q.id] != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(File(_photos[q.id]!),
+              child: LocalImage(path: _photos[q.id]!,
                   height: 140, width: double.infinity, fit: BoxFit.cover),
             ),
           const SizedBox(height: 8),

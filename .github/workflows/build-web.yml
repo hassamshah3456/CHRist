@@ -1,0 +1,36 @@
+name: Build Web App
+
+# Builds the Flutter web collector app for serving at /web on the API server.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.24.5"
+
+      - name: Generate web platform files
+        run: flutter create --org com.usmlewise --project-name usmlewise_christ --platforms=web .
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build release web app
+        run: flutter build web --release --base-href /web/
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: usmlewise-christ-web
+          path: build/web/
+          if-no-files-found: error

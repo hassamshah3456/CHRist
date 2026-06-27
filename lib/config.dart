@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// App-wide configuration.
 ///
 /// The API base URL can be overridden at build time without editing code:
@@ -5,13 +7,16 @@
 class AppConfig {
   /// Base URL of the FastAPI backend. No trailing slash.
   ///
-  /// Default points to localhost for emulator testing. On a real device this
-  /// MUST be your deployed server (e.g. https://usmlewise-api.onrender.com).
-  /// 10.0.2.2 is the Android emulator's alias for the host machine.
-  static const String apiBaseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000',
-  );
+  /// On web the app is served from the same origin as the API (e.g. /web on
+  /// api.usmlewise.com), so relative paths are used. On mobile, override at
+  /// build time or use the emulator default (10.0.2.2).
+  static String get apiBaseUrl {
+    if (kIsWeb) return '';
+    return const String.fromEnvironment(
+      'API_BASE_URL',
+      defaultValue: 'http://10.0.2.2:8000',
+    );
+  }
 
   static const String appName = 'CRIST Tool';
 }

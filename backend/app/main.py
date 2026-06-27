@@ -143,10 +143,10 @@ app.add_middleware(
 
 @app.middleware("http")
 async def no_cache_dashboard(request, call_next):
-    """Keep the admin dashboard from being aggressively cached, so deploys
-    show up on a normal refresh instead of needing a hard refresh."""
+    """Keep the admin dashboard and web app from being aggressively cached, so
+    deploys show up on a normal refresh instead of needing a hard refresh."""
     response = await call_next(request)
-    if request.url.path.startswith("/admin"):
+    if request.url.path.startswith(("/admin", "/web")):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
@@ -185,6 +185,19 @@ if os.path.isdir(_DASHBOARD_DIR):
         StaticFiles(directory=_DASHBOARD_DIR, html=True),
         name="dashboard",
     )
+
+# ---- Collector web app (Flutter web build) served at /web ----
+_WEB_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "build", "web")
+)
+if os.path.isdir(_WEB_DIR):
+    app.mount(
+        "/web",
+        StaticFiles(directory=_WEB_DIR, html=True),
+        name="webapp",
+    )
+
+if os.path.isdir(_DASHBOARD_DIR):
 
     @app.get("/", include_in_schema=False)
     def root_redirect():

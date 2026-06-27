@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 import '../models/collection.dart';
 
@@ -16,59 +18,78 @@ class LocalDatabase {
     return _db!;
   }
 
+  Future<void> _onCreate(Database db, int _) async {
+    await db.execute('''
+      CREATE TABLE collections (
+        id TEXT PRIMARY KEY,
+        collector_name TEXT,
+        verbal_consent INTEGER,
+        phone TEXT,
+        child_name TEXT,
+        child_age INTEGER,
+        child_age_months INTEGER,
+        child_sex TEXT,
+        responder TEXT,
+        responder_other TEXT,
+        medical_record INTEGER,
+        vaccines TEXT,
+        medical_record_photo_local TEXT,
+        medical_record_photo TEXT,
+        location_lat REAL,
+        location_lng REAL,
+        location_address TEXT,
+        collected_at TEXT,
+        synced INTEGER DEFAULT 0,
+        answers_json TEXT
+      )
+    ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldV, int newV) async {
+    if (oldV < 2) {
+      await db.execute('ALTER TABLE collections ADD COLUMN answers_json TEXT');
+    }
+    if (oldV < 3) {
+      await db.execute('ALTER TABLE collections ADD COLUMN phone TEXT');
+    }
+    if (oldV < 4) {
+      await db.execute(
+          'ALTER TABLE collections ADD COLUMN child_age_months INTEGER');
+    }
+    if (oldV < 5) {
+      await db.execute('ALTER TABLE collections ADD COLUMN child_name TEXT');
+    }
+    if (oldV < 6) {
+      await db.execute('ALTER TABLE collections ADD COLUMN medical_record INTEGER');
+      await db.execute('ALTER TABLE collections ADD COLUMN vaccines TEXT');
+      await db.execute(
+          'ALTER TABLE collections ADD COLUMN medical_record_photo_local TEXT');
+      await db.execute(
+          'ALTER TABLE collections ADD COLUMN medical_record_photo TEXT');
+    }
+  }
+
   Future<Database> _open() async {
+    const version = 6;
+    if (kIsWeb) {
+      databaseFactory = databaseFactoryFfiWeb;
+      return databaseFactory.openDatabase(
+        'usmlewise_christ.db',
+        options: OpenDatabaseOptions(
+          version: version,
+          onCreate: _onCreate,
+          onUpgrade: _onUpgrade,
+        ),
+      );
+    }
+
     final dir = await getDatabasesPath();
     final path = p.join(dir, 'usmlewise_christ.db');
     return openDatabase(
       path,
-      version: 6,
-      onCreate: (db, _) async {
-        await db.execute('''
-          CREATE TABLE collections (
-            id TEXT PRIMARY KEY,
-            collector_name TEXT,
-            verbal_consent INTEGER,
-            phone TEXT,
-            child_name TEXT,
-            child_age INTEGER,
-            child_age_months INTEGER,
-            child_sex TEXT,
-            responder TEXT,
-            responder_other TEXT,
-            medical_record INTEGER,
-            vaccines TEXT,
-            medical_record_photo_local TEXT,
-            medical_record_photo TEXT,
-            location_lat REAL,
-            location_lng REAL,
-            location_address TEXT,
-            collected_at TEXT,
-            synced INTEGER DEFAULT 0,
-            answers_json TEXT
-          )
-        ''');
-      },
-      onUpgrade: (db, oldV, newV) async {
-        if (oldV < 2) {
-          await db.execute('ALTER TABLE collections ADD COLUMN answers_json TEXT');
-        }
-        if (oldV < 3) {
-          await db.execute('ALTER TABLE collections ADD COLUMN phone TEXT');
-        }
-        if (oldV < 4) {
-          await db.execute(
-              'ALTER TABLE collections ADD COLUMN child_age_months INTEGER');
-        }
-        if (oldV < 5) {
-          await db.execute('ALTER TABLE collections ADD COLUMN child_name TEXT');
-        }
-        if (oldV < 6) {
-          await db.execute('ALTER TABLE collections ADD COLUMN medical_record INTEGER');
-          await db.execute('ALTER TABLE collections ADD COLUMN vaccines TEXT');
-          await db.execute('ALTER TABLE collections ADD COLUMN medical_record_photo_local TEXT');
-          await db.execute('ALTER TABLE collections ADD COLUMN medical_record_photo TEXT');
-        }
-      },
+      version: version,
+      onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/collection.dart';
 import 'api_client.dart';
@@ -38,6 +39,10 @@ class SyncService {
   }
 
   Future<bool> isOnline() async {
+    if (kIsWeb) {
+      // Browsers don't expose raw connectivity; assume online and let HTTP fail.
+      return true;
+    }
     final results = await _connectivity.checkConnectivity();
     return results.any((r) => r != ConnectivityResult.none);
   }
@@ -58,8 +63,9 @@ class SyncService {
           var changed = false;
           if (c.medicalRecordPhotoLocalPath != null &&
               c.medicalRecordPhotoFilename == null) {
-            c.medicalRecordPhotoFilename =
-                await api.uploadPhoto(c.medicalRecordPhotoLocalPath!);
+            c.medicalRecordPhotoFilename = await api.uploadPhoto(
+              c.medicalRecordPhotoLocalPath!,
+            );
             changed = true;
           }
           for (final a in c.answers) {
