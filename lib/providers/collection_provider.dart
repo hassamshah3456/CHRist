@@ -91,6 +91,15 @@ class CollectionProvider extends ChangeNotifier {
       synced: false,
       answers: answers,
     );
+
+    if (kIsWeb) {
+      // Web: save directly to the API (sqflite web is unreliable under /web/).
+      await sync.pushCollection(c);
+      await refreshStats();
+      await loadCollections(_currentPeriod);
+      return;
+    }
+
     await db.insert(c);
     await refreshStats();
     // Try to push right away; if offline it stays queued.
@@ -104,6 +113,23 @@ class CollectionProvider extends ChangeNotifier {
     loading = true;
     notifyListeners();
 
+    if (kIsWeb) {
+      try {
+        final pulled = await api.get('/collections?period=$period');
+        if (pulled is List) {
+          collections = pulled
+              .map((e) => Collection.fromApiJson(e as Map<String, dynamic>))
+              .toList();
+        }
+      } on ApiException {
+        collections = [];
+      }
+      pendingSync = 0;
+      loading = false;
+      notifyListeners();
+      return;
+    }
+
     // Pull fresh data if we can; ignore failures (offline).
     await sync.syncNow();
     collections = await db.queryByPeriod(period);
@@ -114,6 +140,25 @@ class CollectionProvider extends ChangeNotifier {
   }
 
   Future<void> refreshStats() async {
+    if (kIsWeb) {
+      try {
+        final data = await api.get('/stats') as Map<String, dynamic>?;
+        stats = Stats(
+          total: (data?['total'] as num?)?.toInt() ?? 0,
+          today: (data?['today'] as num?)?.toInt() ?? 0,
+          week: (data?['this_week'] as num?)?.toInt() ?? 0,
+          month: (data?['this_month'] as num?)?.toInt() ?? 0,
+          consentYes: (data?['consent_yes'] as num?)?.toInt() ?? 0,
+          consentNo: (data?['consent_no'] as num?)?.toInt() ?? 0,
+        );
+      } on ApiException {
+        stats = const Stats();
+      }
+      pendingSync = 0;
+      notifyListeners();
+      return;
+    }
+
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final week = today.subtract(const Duration(days: 7));

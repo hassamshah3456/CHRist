@@ -47,9 +47,32 @@ class SyncService {
     return results.any((r) => r != ConnectivityResult.none);
   }
 
+  /// Uploads any pending photos and pushes a single collection to the server.
+  /// Used on web where local SQLite is bypassed.
+  Future<void> pushCollection(Collection c) async {
+    if (c.medicalRecordPhotoLocalPath != null &&
+        c.medicalRecordPhotoFilename == null) {
+      c.medicalRecordPhotoFilename =
+          await api.uploadPhoto(c.medicalRecordPhotoLocalPath!);
+    }
+    for (final a in c.answers) {
+      if (a.photoLocalPath != null && a.photoFilename == null) {
+        a.photoFilename = await api.uploadPhoto(a.photoLocalPath!);
+      }
+    }
+    final res = await api.postJson('/collections/sync', {
+      'collections': [c.toApiJson()],
+    });
+    final ids = (res?['synced_ids'] as List?)?.cast<String>() ?? [];
+    if (!ids.contains(c.id)) {
+      throw Exception('Server did not confirm sync.');
+    }
+  }
+
   /// Pushes pending records then pulls the latest. Safe to call often.
   /// Returns true if a push/pull actually ran.
   Future<bool> syncNow() async {
+    if (kIsWeb) return false;
     if (_syncing) return false;
     if (!await isOnline()) return false;
     _syncing = true;
