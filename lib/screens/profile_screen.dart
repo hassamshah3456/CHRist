@@ -10,8 +10,23 @@ import 'language_picker_screen.dart';
 
 /// Collector profile: identity, payment (UPI) details, language switch, and the
 /// sign-out action (moved here from the dashboard header).
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Pull the latest profile from the server so admin-side edits (name, phone,
+    // UPI details) are reflected as soon as the collector opens this screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().refreshProfile();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,9 +36,12 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(context.t('profile'))),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          children: [
+        child: RefreshIndicator(
+          onRefresh: () => context.read<AuthProvider>().refreshProfile(),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+            children: [
             _avatar(user?.name ?? 'Collector'),
             const SizedBox(height: 24),
             _sectionTitle(context, context.t('account')),
@@ -90,6 +108,7 @@ class ProfileScreen extends StatelessWidget {
               label: Text(context.t('sign_out')),
             ),
           ],
+          ),
         ),
       ),
     );

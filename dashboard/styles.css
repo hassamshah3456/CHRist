@@ -176,14 +176,34 @@ tbody tr:hover { background: #f7f9fe; }
 /* Wrap content so these tables stay full width and never scroll horizontally. */
 #collections-table,
 #collectors-table,
-#group-members-table { table-layout: fixed; }
+#group-members-table,
+#payments-table,
+#group-payments-table,
+#card-approvals-table { table-layout: fixed; }
 #collections-table th,
 #collections-table td,
 #collectors-table th,
 #collectors-table td,
 #group-members-table th,
-#group-members-table td {
+#group-members-table td,
+#payments-table th,
+#payments-table td,
+#group-payments-table th,
+#group-payments-table td,
+#card-approvals-table th,
+#card-approvals-table td {
   white-space: normal; overflow-wrap: anywhere; vertical-align: top;
+}
+/* The payout tables are dense (10 columns); trim padding so every column fits. */
+#payments-table th,
+#payments-table td,
+#group-payments-table th,
+#group-payments-table td { padding: 9px 7px; }
+/* Buttons inside fixed-width cells must shrink/wrap rather than force overflow. */
+#payments-table td button,
+#group-payments-table td button,
+#card-approvals-table td button {
+  width: 100%; padding: 7px 6px; white-space: normal;
 }
 .row-del {
   border: 1px solid #f3c9c5; background: #fff; color: var(--danger);

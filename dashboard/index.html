@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=24" />
 </head>
 <body>
 
@@ -231,6 +231,12 @@
         <div id="group-payments-summary" class="payments-summary"></div>
         <div class="table-wrap">
           <table id="group-payments-table">
+            <colgroup>
+              <col style="width:15%" /><col style="width:13%" /><col style="width:7%" />
+              <col style="width:9%" /><col style="width:9%" /><col style="width:9%" />
+              <col style="width:8%" /><col style="width:8%" /><col style="width:13%" />
+              <col style="width:9%" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Collector</th><th>UPI</th><th>Total</th><th>Usual unpaid</th>
@@ -291,6 +297,12 @@
         <div id="payments-summary" class="payments-summary"></div>
         <div class="table-wrap">
           <table id="payments-table">
+            <colgroup>
+              <col style="width:15%" /><col style="width:13%" /><col style="width:7%" />
+              <col style="width:9%" /><col style="width:9%" /><col style="width:9%" />
+              <col style="width:8%" /><col style="width:8%" /><col style="width:13%" />
+              <col style="width:9%" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Collector</th><th>UPI</th><th>Total</th><th>Usual unpaid</th>
@@ -310,6 +322,10 @@
         </div>
         <div class="table-wrap">
           <table id="card-approvals-table">
+            <colgroup>
+              <col style="width:15%" /><col style="width:22%" /><col style="width:19%" />
+              <col style="width:15%" /><col style="width:15%" /><col style="width:14%" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Submitted</th><th>Collector</th><th>Child</th><th>Phone</th>

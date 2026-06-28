@@ -39,10 +39,29 @@ class AuthProvider extends ChangeNotifier {
       sync.start();
       sync.syncNow();
       presence.enable();
+      // Pick up any profile edits an admin made while the app was closed
+      // (name, phone, UPI details, …). Best-effort; never blocks startup.
+      refreshProfile();
     } else {
       status = AuthStatus.unauthenticated;
     }
     notifyListeners();
+  }
+
+  /// Re-fetches the signed-in collector's profile from the server and updates
+  /// the cached user so admin-side edits (contact + payout details) show up in
+  /// the app. Best-effort: silently ignores offline / transient failures.
+  Future<void> refreshProfile() async {
+    if (status != AuthStatus.authenticated) return;
+    try {
+      final res = await api.get('/me');
+      final fresh = AppUser.fromJson(res as Map<String, dynamic>);
+      user = fresh;
+      await store.saveUser(fresh);
+      notifyListeners();
+    } catch (_) {
+      // Offline or server error — keep the cached profile.
+    }
   }
 
   Future<void> register({

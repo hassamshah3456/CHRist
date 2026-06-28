@@ -15,6 +15,13 @@ class SessionStore {
     await prefs.setString(_kUser, jsonEncode(user.toJson()));
   }
 
+  /// Updates just the cached user (e.g. after refreshing the profile from the
+  /// server), leaving the saved token untouched.
+  Future<void> saveUser(AppUser user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kUser, jsonEncode(user.toJson()));
+  }
+
   Future<String?> readToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_kToken);
