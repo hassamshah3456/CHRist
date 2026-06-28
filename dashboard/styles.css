@@ -151,6 +151,22 @@ tbody tr:hover { background: #f7f9fe; }
 .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
 .badge-yes { background: #e7f7ec; color: var(--success); }
 .badge-no { background: #fdeceb; color: var(--danger); }
+.badge-triple { background: #fff3e0; color: #b06a00; }
+.badge-quad { background: #fdeceb; color: var(--danger); }
+.pos-count { color: var(--muted); font-weight: 600; font-size: 13px; }
+
+/* Submissions table: wrap content so it never scrolls horizontally. */
+#collections-table { table-layout: fixed; }
+#collections-table th,
+#collections-table td {
+  white-space: normal; overflow-wrap: anywhere; vertical-align: top;
+}
+.row-del {
+  border: 1px solid #f3c9c5; background: #fff; color: var(--danger);
+  border-radius: 8px; padding: 4px 9px; cursor: pointer; font-size: 14px;
+  line-height: 1;
+}
+.row-del:hover { background: #fdeceb; }
 .empty { text-align: center; color: var(--muted); padding: 30px; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; }
 

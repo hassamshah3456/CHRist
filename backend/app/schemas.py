@@ -276,6 +276,7 @@ class AdminStats(BaseModel):
     today: int
     this_week: int
     this_month: int
+    triple_positive: int = 0  # submissions with 3+ Yes on top-level yes/no questions
     consent_yes: int
     consent_no: int
     collectors_count: int

@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=9" />
+  <link rel="stylesheet" href="styles.css?v=10" />
 </head>
 <body>
 
@@ -79,15 +79,9 @@
       </div>
     </section>
 
-    <section class="grid-2">
-      <div class="card">
-        <h3>Child Gender</h3>
-        <canvas id="chart-sex" height="120"></canvas>
-      </div>
-      <div class="card">
-        <h3>Responder</h3>
-        <canvas id="chart-responder" height="120"></canvas>
-      </div>
+    <section class="card">
+      <h3>Responder</h3>
+      <canvas id="chart-responder" height="120"></canvas>
     </section>
 
     <section class="grid-2">
@@ -121,6 +115,11 @@
         <button class="tab active" data-tab="collections">Submissions</button>
         <button class="tab" data-tab="collectors">Collectors</button>
         <div class="tabs-spacer"></div>
+        <select id="positive-filter" class="search" title="Filter by positive screening answers">
+          <option value="all">All submissions</option>
+          <option value="triple">Triple positive (3+ Yes)</option>
+          <option value="quad">Quadruple positive (4+ Yes)</option>
+        </select>
         <input id="search" class="search" placeholder="Search…" />
         <button class="btn-primary" id="export-btn">⬇ Export CSV</button>
       </div>
@@ -128,10 +127,15 @@
       <div id="tab-collections" class="tab-panel">
         <div class="table-wrap">
           <table id="collections-table">
+            <colgroup>
+              <col style="width:11%" /><col style="width:14%" /><col style="width:16%" />
+              <col style="width:12%" /><col style="width:9%" /><col style="width:12%" />
+              <col style="width:18%" /><col style="width:8%" />
+            </colgroup>
             <thead>
               <tr>
-                <th>When</th><th>Collector</th><th>Phone</th><th>Child</th><th>Age</th><th>Gender</th>
-                <th>Responder</th><th>Consent</th><th>Location</th>
+                <th>When</th><th>Collector</th><th>Child</th><th>Phone</th>
+                <th>Consent</th><th>Positives</th><th>Location</th><th></th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -317,6 +321,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 </body>
 </html>

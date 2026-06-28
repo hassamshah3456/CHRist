@@ -54,6 +54,26 @@ def _today() -> datetime:
     return datetime(n.year, n.month, n.day)
 
 
+def _primary_yes_no_codes(db: Session) -> set:
+    """Question codes for top-level yes/no screening items (excludes follow-ups)."""
+    rows = db.query(models.Question).filter(
+        models.Question.qtype == "yes_no"
+    ).all()
+    return {q.code for q in rows}
+
+
+def _count_triple_positive(db: Session) -> int:
+    """Submissions with 3+ Yes answers on top-level yes/no screening questions."""
+    codes = _primary_yes_no_codes(db)
+    q = db.query(models.Answer).filter(models.Answer.value_bool == True)  # noqa: E712
+    if codes:
+        q = q.filter(models.Answer.question_code.in_(codes))
+    else:
+        q = q.filter(models.Answer.qtype == "yes_no")
+    yes_by_collection = Counter(a.collection_id for a in q.all())
+    return sum(1 for n in yes_by_collection.values() if n >= 3)
+
+
 def _apply_period(query, period: str):
     """Filter a Collection query by a named period."""
     today = _today()
@@ -210,12 +230,14 @@ def admin_stats(
     )
 
     collectors = _collector_summaries(db, users)
+    triple_positive = _count_triple_positive(db)
 
     return schemas.AdminStats(
         total=total,
         today=n_today,
         this_week=n_week,
         this_month=n_month,
+        triple_positive=triple_positive,
         consent_yes=consent_yes,
         consent_no=total - consent_yes,
         collectors_count=len(collectors),
@@ -293,6 +315,41 @@ def admin_collections(
         )
         for c, u in rows
     ]
+
+
+@router.delete("/collections/{collection_id}", status_code=204)
+def delete_collection(
+    collection_id: str,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Permanently delete a submission, its answers, and any uploaded photos."""
+    c = db.query(models.Collection).filter(
+        models.Collection.id == collection_id
+    ).first()
+    if c is None:
+        raise HTTPException(404, "Collection not found.")
+
+    # Gather photo filenames before the row (and cascaded answers) are removed.
+    photo_names = []
+    if c.medical_record_photo:
+        photo_names.append(c.medical_record_photo)
+    for a in c.answers:
+        if a.photo_filename:
+            photo_names.append(a.photo_filename)
+
+    db.delete(c)  # answers are removed via cascade="all, delete-orphan"
+    db.commit()
+
+    for name in photo_names:
+        if not name or "/" in name or "\\" in name or ".." in name:
+            continue
+        path = os.path.join(settings.MEDIA_DIR, name)
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+        except OSError:
+            pass
 
 
 @router.get("/collectors", response_model=List[schemas.CollectorSummary])

@@ -13,6 +13,8 @@ const charts = {};
 let map, markersLayer;
 let lastCollections = [];
 let allCollectors = [];
+let currentPositiveFilter = "all";
+let primaryYesNoCodes = null;
 let groups = [];
 let selectedGroup = null;
 let groupMap;
@@ -223,7 +225,6 @@ async function loadStats() {
   renderKpis(s);
   renderTrend(s.daily);
   renderConsent(s.consent_yes, s.consent_no);
-  renderBreakdown("chart-sex", s.sex_breakdown, ["#1e4db7", "#00b8a9", "#7a5af8", "#e2574c"]);
   renderBreakdown("chart-responder", s.responder_breakdown, ["#1e4db7", "#00b8a9", "#f0a500", "#7a5af8", "#e2574c"]);
   renderAgeBars(s.age_breakdown || []);
   renderPositivity(s.question_stats || []);
@@ -232,8 +233,43 @@ async function loadStats() {
 async function loadCollections() {
   const data = await api("/api/collections?period=" + currentPeriod());
   lastCollections = data;
+  await ensureQuestionCodes();
   renderCollections(data);
   renderMapCollections(data);
+}
+
+// The set of top-level yes/no question codes, used to score "positivity".
+// Follow-up questions are excluded (they only appear after a parent "Yes"),
+// mirroring the field app's triple-positive rule.
+async function ensureQuestionCodes() {
+  try {
+    if (!questions.length) questions = await api("/api/questions");
+  } catch (e) { /* keep whatever we have */ }
+  primaryYesNoCodes = new Set(
+    (questions || [])
+      .filter((q) => q && q.qtype === "yes_no")
+      .map((q) => q.code)
+  );
+}
+
+// Number of "Yes" answers to top-level yes/no screening questions.
+function positiveCount(r) {
+  let yes = 0;
+  (r.answers || []).forEach((a) => {
+    if (a.value_bool !== true) return;
+    if (primaryYesNoCodes && primaryYesNoCodes.size) {
+      if (primaryYesNoCodes.has(a.question_code)) yes++;
+    } else if (a.qtype === "yes_no") {
+      yes++;
+    }
+  });
+  return yes;
+}
+
+function positiveBadge(n) {
+  if (n >= 4) return `<span class="badge badge-quad" title="${n} positive answers">Quadruple · ${n}</span>`;
+  if (n >= 3) return `<span class="badge badge-triple" title="${n} positive answers">Triple · ${n}</span>`;
+  return `<span class="pos-count">${n} Yes</span>`;
 }
 
 async function loadCollectors() {
@@ -254,6 +290,7 @@ function renderKpis(s) {
     { label: "Today", value: s.today, color: "#1e4db7" },
     { label: "This week", value: s.this_week, color: "#00b8a9" },
     { label: "This month", value: s.this_month, color: "#7a5af8" },
+    { label: "Triple positive", value: s.triple_positive ?? 0, color: "#b06a00" },
     { label: "Collectors", value: s.collectors_count, color: "#f0a500" },
     { label: "Avg age", value: s.avg_age != null ? s.avg_age + " yrs" : "—", color: "#e2574c" },
     { label: "Consent rate", value: consentRate, color: "#2ba84a" },
@@ -351,29 +388,32 @@ function renderPositivity(stats) {
 }
 
 function _rowHtml(r, grouped) {
-  const responder = r.responder === "other"
-    ? (r.responder_other || "Other") : cap(r.responder);
+  const n = positiveCount(r);
   return `<tr class="clickable ${grouped ? "grouped" : ""}" data-id="${r.id}">
     <td>${fmtDate(r.collected_at)}</td>
     <td>${escapeHtml(r.collector_name || "—")}</td>
+    <td>${escapeHtml(r.child_name || "—")}<br><small>${fmtAge(r.child_age, r.child_age_months)}</small></td>
     <td>${escapeHtml(r.phone || "—")}</td>
-    <td>${escapeHtml(r.child_name || "—")}</td>
-    <td>${fmtAge(r.child_age, r.child_age_months)}</td>
-    <td>${cap(r.child_sex)}</td>
-    <td>${escapeHtml(responder)}</td>
     <td><span class="badge ${r.verbal_consent ? "badge-yes" : "badge-no"}">${r.verbal_consent ? "Yes" : "No"}</span></td>
+    <td>${positiveBadge(n)}</td>
     <td>${locationSpan(r.location_address, r.location_lat, r.location_lng)}</td>
+    <td><button class="row-del" data-del-sub="${r.id}" title="Delete submission">🗑</button></td>
   </tr>`;
 }
 
 function renderCollections(rows) {
   const q = ($("#search").value || "").toLowerCase();
-  const filtered = q
+  let filtered = q
     ? rows.filter((r) => JSON.stringify(r).toLowerCase().includes(q))
-    : rows;
+    : rows.slice();
+  if (currentPositiveFilter === "triple") {
+    filtered = filtered.filter((r) => positiveCount(r) >= 3);
+  } else if (currentPositiveFilter === "quad") {
+    filtered = filtered.filter((r) => positiveCount(r) >= 4);
+  }
   const tbody = $("#collections-table tbody");
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">No submissions found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No submissions found.</td></tr>`;
     return;
   }
 
@@ -391,7 +431,7 @@ function renderCollections(rows) {
 
   let html = "";
   Object.entries(groups).forEach(([phone, list]) => {
-    html += `<tr class="group-head"><td colspan="9">📞 ${escapeHtml(phone)}
+    html += `<tr class="group-head"><td colspan="8">📞 ${escapeHtml(phone)}
       <span class="group-count">${list.length} children</span></td></tr>`;
     list.forEach((r) => { html += _rowHtml(r, true); });
   });
@@ -448,7 +488,7 @@ function renderMapCollections(rows) {
     if (r.location_lat == null || r.location_lng == null) return;
     const m = L.marker([r.location_lat, r.location_lng], { icon: blueIcon("#1e4db7") })
       .bindPopup(`<b>${escapeHtml(r.child_name || r.collector_name || "Child")}</b><br>
-        Age ${fmtAge(r.child_age, r.child_age_months)} · ${cap(r.child_sex)}<br>
+        Age ${fmtAge(r.child_age, r.child_age_months)}<br>
         Consent: ${r.verbal_consent ? "Yes" : "No"}<br>
         <small>${fmtDate(r.collected_at)}</small>`);
     m.addTo(markersLayer); collectionMarkers.push(m);
@@ -1214,7 +1254,7 @@ function openSubmission(id) {
     <div class="ans-row"><div class="ans-q">Collector</div><div class="ans-v">${escapeHtml(r.collector_name || "—")}</div></div>
     <div class="ans-row"><div class="ans-q">Phone</div><div class="ans-v">${escapeHtml(r.phone || "—")}</div></div>
     <div class="ans-row"><div class="ans-q">When</div><div class="ans-v">${fmtDate(r.collected_at)}</div></div>
-    <div class="ans-row"><div class="ans-q">Child</div><div class="ans-v">${escapeHtml(r.child_name || "—")} · Age ${fmtAge(r.child_age, r.child_age_months)} · ${cap(r.child_sex)} · Responder: ${escapeHtml(responder)}</div></div>
+    <div class="ans-row"><div class="ans-q">Child</div><div class="ans-v">${escapeHtml(r.child_name || "—")} · Age ${fmtAge(r.child_age, r.child_age_months)} · Responder: ${escapeHtml(responder)}</div></div>
     <div class="ans-row"><div class="ans-q">Verbal consent</div><div class="ans-v"><span class="${r.verbal_consent ? "yes" : "no"}">${r.verbal_consent ? "Yes" : "No"}</span></div></div>
     <div class="ans-row"><div class="ans-q">Medical record</div><div class="ans-v">${r.medical_record == null ? "—" : `<span class="${r.medical_record ? "yes" : "no"}">${r.medical_record ? "Yes" : "No"}</span>`} · Vaccines: ${fmtVaccines(r.vaccines)}${r.medical_record_photo ? `<br><img class="ans-photo" id="medph" alt="medical record loading…"/>` : ""}</div></div>
     <div class="ans-row"><div class="ans-q">Location</div><div class="ans-v">${locationSpan(r.location_address, r.location_lat, r.location_lng, 5)}</div></div>`;
@@ -1236,12 +1276,33 @@ function openSubmission(id) {
   } else {
     html += `<p class="hint" style="margin-top:14px">No screening answers recorded for this submission.</p>`;
   }
-  html += `<div class="modal-actions"><button class="cancel" id="sub-close">Close</button></div>`;
+  html += `<div class="modal-actions">
+    <button class="btn-danger" id="sub-delete">Delete submission</button>
+    <button class="cancel" id="sub-close">Close</button>
+  </div>`;
   openModal(html);
   hydrateAddressSpans($("#modal"));
   $("#sub-close").addEventListener("click", closeModal);
+  $("#sub-delete").addEventListener("click", async () => {
+    if (await deleteSubmission(r.id)) closeModal();
+  });
   answers.forEach((a, i) => { if (a.photo_filename) loadPhoto(a.photo_filename, $("#ph-" + i)); });
   if (r.medical_record_photo) loadPhoto(r.medical_record_photo, $("#medph"));
+}
+
+async function deleteSubmission(id) {
+  if (!confirm(
+    "Delete this submission permanently?\n\n" +
+    "Its screening answers and any uploaded photos will also be removed. " +
+    "This cannot be undone."
+  )) return false;
+  try {
+    await api(`/api/collections/${id}`, { method: "DELETE" });
+    lastCollections = lastCollections.filter((c) => c.id !== id);
+    renderCollections(lastCollections);
+    renderMapCollections(lastCollections);
+    return true;
+  } catch (e) { alert(e.message); return false; }
 }
 
 function fmtVaccines(csv) {
@@ -1250,6 +1311,8 @@ function fmtVaccines(csv) {
 }
 
 $("#collections-table").addEventListener("click", (e) => {
+  const del = e.target.closest("[data-del-sub]");
+  if (del) { e.stopPropagation(); deleteSubmission(del.dataset.delSub); return; }
   const tr = e.target.closest("tr.clickable");
   if (tr && tr.dataset.id) openSubmission(tr.dataset.id);
 });
@@ -1278,6 +1341,10 @@ $("#period").addEventListener("change", () => {
 });
 $("#export-btn").addEventListener("click", exportCsv);
 $("#search").addEventListener("input", () => renderCollections(lastCollections));
+$("#positive-filter").addEventListener("change", (e) => {
+  currentPositiveFilter = e.target.value;
+  renderCollections(lastCollections);
+});
 
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
@@ -1286,6 +1353,8 @@ document.querySelectorAll(".tab").forEach((tab) => {
     const which = tab.dataset.tab;
     $("#tab-collections").classList.toggle("hidden", which !== "collections");
     $("#tab-collectors").classList.toggle("hidden", which !== "collectors");
+    // The positivity filter only applies to submissions.
+    $("#positive-filter").classList.toggle("hidden", which !== "collections");
   });
 });
 
