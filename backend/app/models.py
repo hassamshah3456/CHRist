@@ -168,7 +168,8 @@ class Answer(Base):
     collection_id = Column(
         String(36), ForeignKey("collections.id"), index=True, nullable=False
     )
-    question_id = Column(String(36), nullable=True)  # null if question removed
+    # Wider than a bare UUID so follow-up answers (parent id + "__fu") fit.
+    question_id = Column(String(64), nullable=True)  # null if question removed
     question_code = Column(String(64), nullable=False)
     question_title = Column(String(512), nullable=True)  # snapshot at answer time
     qtype = Column(String(20), nullable=True)

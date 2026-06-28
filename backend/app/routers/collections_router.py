@@ -102,7 +102,7 @@ def sync(
             for a in item.answers:
                 db.add(models.Answer(
                     collection_id=record.id,
-                    question_id=a.question_id,
+                    question_id=a.question_id[:64] if a.question_id else None,
                     question_code=(a.question_code or "")[:64],
                     question_title=a.question_title[:512] if a.question_title else None,
                     qtype=a.qtype,
