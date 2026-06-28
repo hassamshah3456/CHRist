@@ -6,6 +6,7 @@ Prefixed with /api so they don't collide with the /admin static mount.
 import csv
 import io
 import os
+import re
 from collections import Counter, OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -22,6 +23,20 @@ from ..database import get_db
 
 router = APIRouter(prefix="/api", tags=["admin"])
 ONLINE_WINDOW = timedelta(minutes=3)
+# Two entries collected closer than this are humanly implausible and get flagged.
+RAPID_ENTRY_GAP = timedelta(seconds=60)
+
+
+def _rapid_entry_count(times: List[datetime]) -> int:
+    """How many consecutive entries were made < RAPID_ENTRY_GAP apart."""
+    valid = sorted(t for t in times if t is not None)
+    if len(valid) < 2:
+        return 0
+    return sum(
+        1
+        for prev, cur in zip(valid, valid[1:])
+        if (cur - prev) < RAPID_ENTRY_GAP
+    )
 
 
 def _answers_by_collection(db: Session, collection_ids: List[str]):
@@ -251,12 +266,18 @@ def _collector_summaries(
     cols = q.all()
     by_user_count = Counter(c.user_id for c in cols)
     last_by_user = {}
+    times_by_user = defaultdict(list)
     for c in cols:
-        if c.collected_at and (
-            c.user_id not in last_by_user
-            or c.collected_at > last_by_user[c.user_id]
-        ):
-            last_by_user[c.user_id] = c.collected_at
+        if c.collected_at:
+            times_by_user[c.user_id].append(c.collected_at)
+            if (
+                c.user_id not in last_by_user
+                or c.collected_at > last_by_user[c.user_id]
+            ):
+                last_by_user[c.user_id] = c.collected_at
+    flagged_by_user = {
+        uid: _rapid_entry_count(times) for uid, times in times_by_user.items()
+    }
     now = datetime.utcnow()
     rows = [
         schemas.CollectorSummary(
@@ -277,6 +298,8 @@ def _collector_summaries(
             last_lng=u.last_lng,
             last_address=u.last_address,
             app_seconds=u.app_seconds or 0,
+            flagged_count=flagged_by_user.get(u.id, 0),
+            flagged=flagged_by_user.get(u.id, 0) > 0,
         )
         for u in users
         if not u.is_admin
@@ -506,6 +529,49 @@ def admin_collectors(
 ):
     users = db.query(models.User).filter(models.User.is_admin == False).all()  # noqa: E712
     return _collector_summaries(db, users)
+
+
+@router.put("/collectors/{collector_id}", response_model=schemas.CollectorSummary)
+def update_collector(
+    collector_id: str,
+    body: schemas.CollectorUpdate,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Edit a collector's contact + payout details from the dashboard."""
+    user = db.query(models.User).filter(models.User.id == collector_id).first()
+    if user is None or user.is_admin:
+        raise HTTPException(404, "Collector not found.")
+
+    phone = re.sub(r"\D", "", (body.phone or "").strip())
+    if phone:
+        if len(phone) < 7:
+            raise HTTPException(400, "Enter a valid phone number.")
+        clash = db.query(models.User).filter(
+            models.User.phone == phone, models.User.id != user.id
+        ).first()
+        if clash:
+            raise HTTPException(409, "Another account already uses this phone number.")
+        user.phone = phone
+    else:
+        user.phone = None
+
+    email = (body.email or "").strip().lower() or None
+    if email:
+        clash = db.query(models.User).filter(
+            func.lower(models.User.email) == email, models.User.id != user.id
+        ).first()
+        if clash:
+            raise HTTPException(409, "Another account already uses this email.")
+    user.email = email
+
+    user.name = body.name.strip()
+    user.upi_address = body.upi_address.strip() or "-"
+    user.upi_name = (body.upi_name or "").strip() or None
+
+    db.commit()
+    db.refresh(user)
+    return _collector_summaries(db, [user])[0]
 
 
 # ---------- Collector groups ----------

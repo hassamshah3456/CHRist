@@ -20,6 +20,12 @@ class LocalDatabase {
 
   Future<void> _onCreate(Database db, int _) async {
     await db.execute('''
+      CREATE TABLE app_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      )
+    ''');
+    await db.execute('''
       CREATE TABLE collections (
         id TEXT PRIMARY KEY,
         collector_name TEXT,
@@ -67,10 +73,18 @@ class LocalDatabase {
       await db.execute(
           'ALTER TABLE collections ADD COLUMN medical_record_photo TEXT');
     }
+    if (oldV < 7) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS app_meta (
+          key TEXT PRIMARY KEY,
+          value TEXT
+        )
+      ''');
+    }
   }
 
   Future<Database> _open() async {
-    const version = 6;
+    const version = 7;
     if (kIsWeb) {
       databaseFactory = databaseFactoryFfiWeb;
       return databaseFactory.openDatabase(
@@ -189,5 +203,27 @@ class LocalDatabase {
   Future<void> clearAll() async {
     final db = await _database;
     await db.delete('collections');
+    await db.delete('app_meta');
+  }
+
+  static const _pendingSecondsKey = 'pending_app_seconds';
+
+  /// Foreground time (seconds) accrued locally but not yet acknowledged by the
+  /// server. Persisted so it survives app restarts and offline periods.
+  Future<int> getPendingAppSeconds() async {
+    final db = await _database;
+    final rows = await db.query('app_meta',
+        where: 'key = ?', whereArgs: [_pendingSecondsKey], limit: 1);
+    if (rows.isEmpty) return 0;
+    return int.tryParse(rows.first['value'] as String? ?? '0') ?? 0;
+  }
+
+  Future<void> setPendingAppSeconds(int seconds) async {
+    final db = await _database;
+    await db.insert(
+      'app_meta',
+      {'key': _pendingSecondsKey, 'value': '${seconds < 0 ? 0 : seconds}'},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 }

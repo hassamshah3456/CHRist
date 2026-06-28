@@ -50,6 +50,10 @@ class TokenResponse(BaseModel):
 class HeartbeatRequest(BaseModel):
     session_id: str = Field(..., min_length=1, max_length=36)
     location: Optional[GeoPoint] = None
+    # Foreground seconds accrued on the device since the last acknowledged
+    # heartbeat. Client-driven so time worked offline is counted once it syncs.
+    # Bounded so a single flush (e.g. after a long offline stretch) stays sane.
+    app_seconds_delta: int = Field(0, ge=0, le=86400)
 
 
 class HeartbeatResponse(BaseModel):
@@ -245,6 +249,19 @@ class CollectorSummary(BaseModel):
     last_lng: Optional[float] = None
     last_address: Optional[str] = None
     app_seconds: int = 0
+    # Anomaly detection: pairs of entries made implausibly close together,
+    # surfaced in red on the dashboard so leads can spot abnormal behaviour.
+    flagged_count: int = 0
+    flagged: bool = False
+
+
+class CollectorUpdate(BaseModel):
+    """Admin-editable collector contact + payout details."""
+    name: str = Field(..., min_length=1, max_length=255)
+    phone: Optional[str] = Field(None, max_length=32)
+    email: Optional[EmailStr] = None
+    upi_address: str = Field(..., min_length=1, max_length=255)
+    upi_name: Optional[str] = Field(None, max_length=255)
 
 
 class CollectorGroupIn(BaseModel):

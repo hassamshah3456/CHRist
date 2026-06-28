@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=20" />
+  <link rel="stylesheet" href="styles.css?v=21" />
 </head>
 <body>
 
@@ -49,6 +49,10 @@
       </nav>
     </div>
     <div class="topbar-right">
+      <select id="timezone" title="Display timezone">
+        <option value="IST" selected>IST (India)</option>
+        <option value="ET">US Eastern</option>
+      </select>
       <select id="period">
         <option value="today">Today</option>
         <option value="yesterday">Yesterday</option>
@@ -158,7 +162,7 @@
               <tr>
                 <th>Collector</th><th>Phone</th><th>UPI</th>
                 <th>Collections</th><th>Status</th><th>Last active</th>
-                <th>Current location</th><th>Time in app</th>
+                <th>Current location</th><th>Time in app</th><th></th>
               </tr>
             </thead>
             <tbody></tbody>

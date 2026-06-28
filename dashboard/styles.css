@@ -153,6 +153,12 @@ tbody tr:hover { background: #f7f9fe; }
 .badge-no { background: #fdeceb; color: var(--danger); }
 .badge-triple { background: #fff3e0; color: #b06a00; }
 .badge-quad { background: #fdeceb; color: var(--danger); }
+.flagged-row > td { background: #fdeceb; }
+.flagged-row:hover > td { background: #fbdcd9; }
+.flag-badge {
+  display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; background: var(--danger); color: #fff;
+}
 .pos-count { color: var(--muted); font-weight: 600; font-size: 13px; }
 
 /* Submissions table: wrap content so it never scrolls horizontally. */

@@ -53,11 +53,30 @@ async function api(path, opts = {}) {
   return ct.includes("json") ? res.json() : res.text();
 }
 
+/* ---------- timezone ---------- */
+const TZ_KEY = "dash_tz";
+const TZONES = { IST: "Asia/Kolkata", ET: "America/New_York" };
+function currentTz() {
+  const v = localStorage.getItem(TZ_KEY);
+  return TZONES[v] ? v : "IST";
+}
+function tzName() { return TZONES[currentTz()]; }
+
+/* The backend emits naive UTC timestamps (no offset). Without this, the browser
+   would parse them as local time and the timezone conversion would be wrong. */
+function parseUtc(iso) {
+  if (!iso) return null;
+  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso);
+  const d = new Date(hasTz ? iso : iso + "Z");
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function fmtDate(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { day: "numeric", month: "short" }) +
-    ", " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  const d = parseUtc(iso);
+  if (!d) return "—";
+  const timeZone = tzName();
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", timeZone }) +
+    ", " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", timeZone });
 }
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : "—"; }
 function collectorContact(c) { return c.phone || c.email || "—"; }
@@ -581,12 +600,12 @@ function renderPagination() {
 function renderCollectors(rows) {
   const tbody = $("#collectors-table tbody");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">No collectors yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">No collectors yet.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((c) => `
-    <tr>
-      <td>${escapeHtml(c.name)}</td>
+    <tr class="${c.flagged ? "flagged-row" : ""}">
+      <td>${escapeHtml(c.name)}${flagBadge(c)}</td>
       <td>${escapeHtml(collectorContact(c))}</td>
       <td>${escapeHtml(c.upi_address || "—")}</td>
       <td><b>${c.total}</b></td>
@@ -594,8 +613,65 @@ function renderCollectors(rows) {
       <td>${fmtDate(c.last_seen || c.last_collection)}</td>
       <td>${locationCell(c)}</td>
       <td>${fmtDuration(c.app_seconds)}</td>
+      <td><button class="btn-ghost" data-edit-collector="${c.id}">Edit</button></td>
     </tr>`).join("");
   hydrateAddressSpans(tbody);
+  tbody.querySelectorAll("[data-edit-collector]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const c = (allCollectors || []).find((x) => x.id === b.dataset.editCollector);
+      if (c) openCollectorModal(c);
+    }));
+}
+
+function collectorForm(c) {
+  return `
+    <h3>Edit collector</h3>
+    <label>Full name</label>
+    <input type="text" id="col-name" value="${escapeHtml(c.name || "")}" />
+    <label>Phone</label>
+    <input type="text" id="col-phone" value="${escapeHtml(c.phone || "")}"
+      placeholder="Digits only" />
+    <label>Email</label>
+    <input type="email" id="col-email" value="${escapeHtml(c.email || "")}"
+      placeholder="optional" />
+    <label>UPI ID</label>
+    <input type="text" id="col-upi" value="${escapeHtml(c.upi_address || "")}"
+      placeholder="name@bank" />
+    <label>UPI account holder name</label>
+    <input type="text" id="col-upi-name" value="${escapeHtml(c.upi_name || "")}"
+      placeholder="optional" />
+    <div class="modal-actions">
+      <button class="cancel" id="col-cancel">Cancel</button>
+      <button class="btn-primary" id="col-save">Save changes</button>
+    </div>`;
+}
+
+function openCollectorModal(c) {
+  openModal(collectorForm(c));
+  $("#col-cancel").addEventListener("click", closeModal);
+  $("#col-save").addEventListener("click", () => saveCollector(c.id));
+}
+
+async function saveCollector(id) {
+  const name = $("#col-name").value.trim();
+  const upi = $("#col-upi").value.trim();
+  if (!name) { alert("Enter the collector's name."); return; }
+  if (!upi) { alert("Enter a UPI ID."); return; }
+  try {
+    await api(`/api/collectors/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        phone: $("#col-phone").value.trim() || null,
+        email: $("#col-email").value.trim() || null,
+        upi_address: upi,
+        upi_name: $("#col-upi-name").value.trim() || null,
+      }),
+    });
+    closeModal();
+    await loadCollectors();
+  } catch (e) { alert(e.message); }
 }
 
 /* ---------- map ---------- */
@@ -803,15 +879,22 @@ function renderGroupMembers(members) {
     return;
   }
   tbody.innerHTML = members.map((c) => `
-    <tr>
+    <tr class="${c.flagged ? "flagged-row" : ""}">
       <td><span class="presence ${c.online ? "online" : ""}">${c.online ? "Online" : "Offline"}</span></td>
-      <td><b>${escapeHtml(c.name)}</b><br><small>${escapeHtml(collectorContact(c))}</small></td>
+      <td><b>${escapeHtml(c.name)}</b>${flagBadge(c)}<br><small>${escapeHtml(collectorContact(c))}</small></td>
       <td><b>${c.total}</b></td>
       <td>${fmtDate(c.last_seen)}</td>
       <td>${locationCell(c)}</td>
       <td>${fmtDuration(c.app_seconds)}</td>
     </tr>`).join("");
   hydrateAddressSpans(tbody);
+}
+
+/* Red anomaly badge for collectors with implausibly fast consecutive entries. */
+function flagBadge(c) {
+  if (!c.flagged) return "";
+  const n = c.flagged_count || 0;
+  return `<span class="flag-badge" title="${n} entr${n === 1 ? "y" : "ies"} made under 60s apart">⚠ ${n}</span>`;
 }
 
 function renderGroupPayments(group) {
@@ -875,7 +958,7 @@ function renderGroupLiveMap(members) {
     } catch (e) {}
   }
   $("#group-live-updated").textContent =
-    `Last refreshed ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+    `Last refreshed ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: tzName() })}`;
 }
 
 function startGroupLiveRefresh() {
@@ -1555,6 +1638,13 @@ $("#period").addEventListener("change", () => {
   loadStats();
   loadCollections(1);
   loadMapCollections();
+  if (!$("#view-groups").classList.contains("hidden")) loadGroups();
+});
+$("#timezone").value = currentTz();
+$("#timezone").addEventListener("change", (e) => {
+  const v = TZONES[e.target.value] ? e.target.value : "IST";
+  localStorage.setItem(TZ_KEY, v);
+  refreshAll();
   if (!$("#view-groups").classList.contains("hidden")) loadGroups();
 });
 $("#export-btn").addEventListener("click", exportCsv);

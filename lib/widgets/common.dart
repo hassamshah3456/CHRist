@@ -130,15 +130,18 @@ class LocationGate extends StatefulWidget {
 class _LocationGateState extends State<LocationGate>
     with WidgetsBindingObserver {
   bool _checking = true;
-  bool _ok = false;
+  LocationPermissionState _state = LocationPermissionState.serviceOff;
   Timer? _timer;
+
+  bool get _ok => _state == LocationPermissionState.granted;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _check();
-    // Keep nudging until location is on; stop polling once it is.
+    // Trigger the OS permission prompt once on first entry, then keep polling
+    // (without re-prompting) so the moment location is enabled we let them in.
+    _initialRequest();
     _timer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!_ok) _check();
     });
@@ -156,14 +159,39 @@ class _LocationGateState extends State<LocationGate>
     super.dispose();
   }
 
+  Future<void> _initialRequest() async {
+    await context.read<LocationService>().ensurePermission();
+    await _check();
+  }
+
+  /// Read-only poll — never prompts — so the 3s timer can't spam OS dialogs.
   Future<void> _check() async {
     final loc = context.read<LocationService>();
-    final ok = await loc.ensurePermission();
+    final state = await loc.permissionState();
     if (!mounted) return;
     setState(() {
-      _ok = ok;
+      _state = state;
       _checking = false;
     });
+  }
+
+  /// User explicitly asked to grant — request, or deep-link to the exact screen
+  /// that resolves the current blocker.
+  Future<void> _resolve() async {
+    final loc = context.read<LocationService>();
+    switch (_state) {
+      case LocationPermissionState.serviceOff:
+        await loc.openLocationSettings();
+        break;
+      case LocationPermissionState.deniedForever:
+        await loc.openAppSettings();
+        break;
+      case LocationPermissionState.denied:
+      case LocationPermissionState.granted:
+        await loc.ensurePermission();
+        break;
+    }
+    await _check();
   }
 
   @override
@@ -176,6 +204,20 @@ class _LocationGateState extends State<LocationGate>
       );
     }
     final loc = context.read<LocationService>();
+    final deniedForever = _state == LocationPermissionState.deniedForever;
+    final isDenied = _state == LocationPermissionState.denied;
+    final String primaryLabel;
+    final IconData primaryIcon;
+    if (deniedForever) {
+      primaryLabel = context.t('open_app_settings');
+      primaryIcon = Icons.settings_outlined;
+    } else if (isDenied) {
+      primaryLabel = context.t('allow_location');
+      primaryIcon = Icons.my_location_rounded;
+    } else {
+      primaryLabel = context.t('turn_on_location');
+      primaryIcon = Icons.my_location_rounded;
+    }
     return Scaffold(
       backgroundColor: AppTheme.surface,
       body: SafeArea(
@@ -205,29 +247,30 @@ class _LocationGateState extends State<LocationGate>
               ),
               const SizedBox(height: 12),
               Text(
-                context.t('location_required_body'),
+                deniedForever
+                    ? context.t('location_denied_forever_body')
+                    : context.t('location_required_body'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     fontSize: 14, color: AppTheme.textMuted, height: 1.5),
               ),
               const SizedBox(height: 28),
               ElevatedButton.icon(
-                onPressed: () async {
-                  await loc.openLocationSettings();
-                  _check();
-                },
-                icon: const Icon(Icons.my_location_rounded),
-                label: Text(context.t('turn_on_location')),
+                onPressed: _resolve,
+                icon: Icon(primaryIcon),
+                label: Text(primaryLabel),
               ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  await loc.openAppSettings();
-                  _check();
-                },
-                icon: const Icon(Icons.settings_outlined),
-                label: Text(context.t('open_app_settings')),
-              ),
+              if (!deniedForever) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    await loc.openAppSettings();
+                    _check();
+                  },
+                  icon: const Icon(Icons.settings_outlined),
+                  label: Text(context.t('open_app_settings')),
+                ),
+              ],
               const SizedBox(height: 20),
               if (_checking)
                 const Center(

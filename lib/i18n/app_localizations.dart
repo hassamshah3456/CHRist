@@ -347,6 +347,21 @@ const Map<String, Map<String, String>> _strings = {
     'hi': 'स्थान चालू करें',
     'kn': 'ಸ್ಥಳ ಆನ್ ಮಾಡಿ',
   },
+  'allow_location': {
+    'en': 'Allow location access',
+    'hi': 'स्थान पहुंच की अनुमति दें',
+    'kn': 'ಸ್ಥಳ ಪ್ರವೇಶಕ್ಕೆ ಅನುಮತಿಸಿ',
+  },
+  'location_denied_forever_body': {
+    'en': 'Location permission is turned off for this app. Open app settings and allow location to continue.',
+    'hi': 'इस ऐप के लिए स्थान अनुमति बंद है। जारी रखने के लिए ऐप सेटिंग्स खोलें और स्थान की अनुमति दें।',
+    'kn': 'ಈ ಆ್ಯಪ್‌ಗೆ ಸ್ಥಳ ಅನುಮತಿ ಆಫ್ ಆಗಿದೆ. ಮುಂದುವರಿಸಲು ಆ್ಯಪ್ ಸೆಟ್ಟಿಂಗ್ಸ್ ತೆರೆದು ಸ್ಥಳಕ್ಕೆ ಅನುಮತಿಸಿ.',
+  },
+  'location_not_ready': {
+    'en': 'Still getting your location — please wait a moment and try again.',
+    'hi': 'अभी भी आपका स्थान प्राप्त हो रहा है — कृपया एक क्षण प्रतीक्षा करें और पुनः प्रयास करें।',
+    'kn': 'ಇನ್ನೂ ನಿಮ್ಮ ಸ್ಥಳವನ್ನು ಪಡೆಯಲಾಗುತ್ತಿದೆ — ದಯವಿಟ್ಟು ಸ್ವಲ್ಪ ನಿರೀಕ್ಷಿಸಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.',
+  },
   'open_app_settings': {
     'en': 'Open app settings',
     'hi': 'ऐप सेटिंग्स खोलें',
@@ -381,4 +396,14 @@ const Map<String, Map<String, String>> _strings = {
     'hi': 'इस डिवाइस पर बिना सिंक किए संग्रह हटा दिए जाएंगे।',
     'kn': 'ಈ ಸಾಧನದಲ್ಲಿ ಸಿಂಕ್ ಆಗದ ಸಂಗ್ರಹಗಳನ್ನು ತೆರವುಗೊಳಿಸಲಾಗುತ್ತದೆ.',
   },
+  // Profile
+  'profile': {'en': 'Profile', 'hi': 'प्रोफ़ाइल', 'kn': 'ಪ್ರೊಫೈಲ್'},
+  'account': {'en': 'Account', 'hi': 'खाता', 'kn': 'ಖಾತೆ'},
+  'payment_details': {
+    'en': 'Payment details',
+    'hi': 'भुगतान विवरण',
+    'kn': 'ಪಾವತಿ ವಿವರಗಳು',
+  },
+  'upi_id': {'en': 'UPI ID', 'hi': 'UPI आईडी', 'kn': 'UPI ಐಡಿ'},
+  'not_set': {'en': 'Not set', 'hi': 'सेट नहीं है', 'kn': 'ಹೊಂದಿಸಿಲ್ಲ'},
 };

@@ -13,6 +13,22 @@ class CapturedLocation {
   bool get hasFix => lat != null && lng != null;
 }
 
+/// The precise reason location is unavailable, so the UI can deep-link the user
+/// to the exact OS screen that fixes it.
+enum LocationPermissionState {
+  /// Services on and permission granted — good to capture.
+  granted,
+
+  /// The device's location services toggle is off (system-level).
+  serviceOff,
+
+  /// Permission denied, but can still be requested in-app.
+  denied,
+
+  /// Permission permanently denied — only the app settings screen can fix it.
+  deniedForever,
+}
+
 /// Handles location permission prompts and captures fixes at app stages
 /// (sign-up, each collection). Designed to never throw to the caller — if
 /// location can't be obtained it returns an empty [CapturedLocation].
@@ -37,6 +53,22 @@ class LocationService {
       return false;
     }
     return true;
+  }
+
+  /// Resolves the precise reason location can't be read (or [granted]).
+  /// Read-only — never prompts — so it's safe to poll from a gate.
+  Future<LocationPermissionState> permissionState() async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return LocationPermissionState.serviceOff;
+    }
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.deniedForever) {
+      return LocationPermissionState.deniedForever;
+    }
+    if (permission == LocationPermission.denied) {
+      return LocationPermissionState.denied;
+    }
+    return LocationPermissionState.granted;
   }
 
   /// Whether the device's location services toggle is currently on.
@@ -91,7 +123,16 @@ class LocationService {
       final ok = await ensurePermission();
       if (!ok) return const CapturedLocation();
 
-      final pos = await _captureBestPosition(precise: includeAddress);
+      Position? pos;
+      try {
+        pos = await _captureBestPosition(precise: includeAddress);
+      } catch (_) {
+        // A live GPS fix can time out (indoors, cold start, or offline). Fall
+        // back to the last known fix so a collection is never saved without a
+        // location when one was recently available.
+        pos = await Geolocator.getLastKnownPosition();
+      }
+      if (pos == null) return const CapturedLocation();
 
       String? address;
       if (includeAddress) {

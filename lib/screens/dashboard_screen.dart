@@ -9,11 +9,11 @@ import '../services/questionnaire_service.dart';
 import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
-import 'auth/welcome_screen.dart';
 import 'collect/collect_form_screen.dart';
 import 'language_picker_screen.dart';
 import 'instructions_screen.dart';
 import 'payment_screen.dart';
+import 'profile_screen.dart';
 import 'collections_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -87,7 +87,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 30),
             children: [
-              _Header(firstName: firstName, onLogout: _confirmLogout),
+              _Header(
+                firstName: firstName,
+                onProfile: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                ),
+              ),
               const SizedBox(height: 20),
               if (!_locationOn) ...[
                 LocationBanner(onEnable: () async {
@@ -155,38 +160,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Future<void> _confirmLogout() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text(context.t('sign_out_q')),
-        content: Text(context.t('sign_out_body')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(context.t('cancel'))),
-          TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(context.t('sign_out'))),
-        ],
-      ),
-    );
-    if (ok == true && mounted) {
-      await context.read<AuthProvider>().logout();
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-          (_) => false,
-        );
-      }
-    }
-  }
 }
 
 class _Header extends StatelessWidget {
   final String firstName;
-  final VoidCallback onLogout;
-  const _Header({required this.firstName, required this.onLogout});
+  final VoidCallback onProfile;
+  const _Header({required this.firstName, required this.onProfile});
 
   @override
   Widget build(BuildContext context) {
@@ -212,9 +191,9 @@ class _Header extends StatelessWidget {
           tooltip: context.t('change_language'),
         ),
         IconButton(
-          onPressed: onLogout,
-          icon: const Icon(Icons.logout_rounded),
-          tooltip: context.t('sign_out'),
+          onPressed: onProfile,
+          icon: const Icon(Icons.person_rounded),
+          tooltip: context.t('profile'),
         ),
       ],
     );

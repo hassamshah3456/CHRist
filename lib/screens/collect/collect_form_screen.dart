@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -51,6 +53,7 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
   final Map<String, String> _photos = {};
 
   CapturedLocation _location = const CapturedLocation();
+  Timer? _locTimer;
   bool _saving = false;
 
   @override
@@ -62,7 +65,26 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
 
   Future<void> _captureLocation() async {
     final loc = await context.read<LocationService>().capture();
-    if (mounted) setState(() => _location = loc);
+    if (!mounted) return;
+    setState(() => _location = loc);
+    // A single GPS attempt can fail (cold start, indoors). Keep retrying in the
+    // background while the form is open so a fix is ready by the time they save.
+    if (!loc.hasFix) {
+      _locTimer ??= Timer.periodic(const Duration(seconds: 5), (t) async {
+        if (!mounted || _location.hasFix) {
+          t.cancel();
+          _locTimer = null;
+          return;
+        }
+        final retry = await context.read<LocationService>().capture();
+        if (!mounted) return;
+        if (retry.hasFix) {
+          setState(() => _location = retry);
+          t.cancel();
+          _locTimer = null;
+        }
+      });
+    }
   }
 
   Future<void> _load() async {
@@ -88,6 +110,7 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
 
   @override
   void dispose() {
+    _locTimer?.cancel();
     _age.dispose();
     _ageMonths.dispose();
     _carryingOther.dispose();
@@ -291,6 +314,21 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
     }
     FocusScope.of(context).unfocus();
     setState(() => _saving = true);
+
+    // Collections must be geo-tagged. If we don't have a fix yet, try once more
+    // (this also falls back to the last known position) before refusing to save.
+    if (!_location.hasFix) {
+      final retry = await context.read<LocationService>().capture();
+      if (!mounted) return;
+      if (retry.hasFix) {
+        _location = retry;
+      } else {
+        setState(() => _saving = false);
+        showSnack(context, context.t('location_not_ready'), error: true);
+        return;
+      }
+    }
+
     final auth = context.read<AuthProvider>();
     final carryingCode =
         _carrying == 'Others' ? 'other' : _carrying!.toLowerCase();
@@ -355,11 +393,11 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
                           children: [
                             Expanded(
                                 child: _quickPicks(
-                                    _age, const [1, 2, 3, 4, 5])),
+                                    _age, const [0, 1, 2, 3, 4, 5])),
                             const SizedBox(width: 12),
                             Expanded(
                                 child: _quickPicks(
-                                    _ageMonths, const [2, 4, 6, 8, 10, 11])),
+                                    _ageMonths, const [0, 2, 4, 6, 8, 10, 11])),
                           ],
                         ),
                         const SizedBox(height: 22),

@@ -93,18 +93,16 @@ def heartbeat(
 ):
     """Record foreground app activity and the collector's latest location.
 
-    Heartbeats are sent about every 30 seconds. Time is accumulated only when two
-    consecutive heartbeats belong to the same foreground session, and each
-    interval is capped to avoid counting time while the app was suspended.
+    Heartbeats are sent about every 30 seconds. Time worked is client-driven:
+    the app accrues real foreground seconds locally (even offline) and reports
+    the increment in ``app_seconds_delta``; we simply add it. This means time
+    worked offline is counted once connectivity returns. The delta is bounded by
+    the schema, and the device caps each interval so suspended time isn't sent.
     """
     now = datetime.utcnow()
-    if (
-        user.active_session_id == payload.session_id
-        and user.last_seen is not None
-    ):
-        elapsed = max(0, int((now - user.last_seen).total_seconds()))
-        if elapsed <= 120:
-            user.app_seconds = (user.app_seconds or 0) + elapsed
+    delta = max(0, int(payload.app_seconds_delta or 0))
+    if delta:
+        user.app_seconds = (user.app_seconds or 0) + delta
 
     user.active_session_id = payload.session_id
     user.last_seen = now
