@@ -671,6 +671,10 @@ async function saveCollector(id) {
     });
     closeModal();
     await loadCollectors();
+    // If a group detail is open, refresh it so the edited row updates there too.
+    if (typeof selectedGroup !== "undefined" && selectedGroup) {
+      await refreshGroupLive(selectedGroup.id);
+    }
   } catch (e) { alert(e.message); }
 }
 
@@ -875,7 +879,7 @@ async function openGroup(id, manageRefresh = true) {
 function renderGroupMembers(members) {
   const tbody = $("#group-members-table tbody");
   if (!members.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">This group has no collectors.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">This group has no collectors.</td></tr>`;
     return;
   }
   tbody.innerHTML = members.map((c) => `
@@ -886,8 +890,14 @@ function renderGroupMembers(members) {
       <td>${fmtDate(c.last_seen)}</td>
       <td>${locationCell(c)}</td>
       <td>${fmtDuration(c.app_seconds)}</td>
+      <td><button class="btn-ghost" data-edit-collector="${c.id}">Edit</button></td>
     </tr>`).join("");
   hydrateAddressSpans(tbody);
+  tbody.querySelectorAll("[data-edit-collector]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const c = (members || []).find((x) => x.id === b.dataset.editCollector);
+      if (c) openCollectorModal(c);
+    }));
 }
 
 /* Red anomaly badge for collectors with implausibly fast consecutive entries. */

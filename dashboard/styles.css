@@ -161,10 +161,16 @@ tbody tr:hover { background: #f7f9fe; }
 }
 .pos-count { color: var(--muted); font-weight: 600; font-size: 13px; }
 
-/* Submissions table: wrap content so it never scrolls horizontally. */
-#collections-table { table-layout: fixed; }
+/* Wrap content so these tables stay full width and never scroll horizontally. */
+#collections-table,
+#collectors-table,
+#group-members-table { table-layout: fixed; }
 #collections-table th,
-#collections-table td {
+#collections-table td,
+#collectors-table th,
+#collectors-table td,
+#group-members-table th,
+#group-members-table td {
   white-space: normal; overflow-wrap: anywhere; vertical-align: top;
 }
 .row-del {
