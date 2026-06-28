@@ -936,11 +936,11 @@ function renderGroupMembers(members) {
     }));
 }
 
-/* Red anomaly badge for collectors with implausibly fast consecutive entries. */
+/* Red anomaly badge for collectors who submitted more than 4 forms in a minute. */
 function flagBadge(c) {
   if (!c.flagged) return "";
   const n = c.flagged_count || 0;
-  return `<span class="flag-badge" title="${n} entr${n === 1 ? "y" : "ies"} made under 60s apart">⚠ ${n}</span>`;
+  return `<span class="flag-badge" title="${n} submissions within one minute (more than 4/min is flagged)">⚠ ${n}/min</span>`;
 }
 
 function renderGroupPayments(group) {

@@ -23,20 +23,28 @@ from ..database import get_db
 
 router = APIRouter(prefix="/api", tags=["admin"])
 ONLINE_WINDOW = timedelta(minutes=3)
-# Two entries collected closer than this are humanly implausible and get flagged.
-RAPID_ENTRY_GAP = timedelta(seconds=60)
+# A completed form counts as one submission. Doing more than this many of them
+# within any rolling 60-second window is humanly implausible and earns a red
+# flag (e.g. 5+ forms in a minute).
+RAPID_ENTRY_WINDOW = timedelta(seconds=60)
+RAPID_ENTRY_MAX_PER_WINDOW = 4
 
 
 def _rapid_entry_count(times: List[datetime]) -> int:
-    """How many consecutive entries were made < RAPID_ENTRY_GAP apart."""
+    """Submissions in the busiest 60-second window, but only when that exceeds
+    the allowed rate (>4/min). Returns 0 otherwise so the collector is not
+    flagged. Each completed form is a single timestamp, so this counts genuine
+    bursts of submissions rather than pairs of merely close entries."""
     valid = sorted(t for t in times if t is not None)
-    if len(valid) < 2:
+    if len(valid) <= RAPID_ENTRY_MAX_PER_WINDOW:
         return 0
-    return sum(
-        1
-        for prev, cur in zip(valid, valid[1:])
-        if (cur - prev) < RAPID_ENTRY_GAP
-    )
+    max_in_window = 0
+    start = 0
+    for end in range(len(valid)):
+        while valid[end] - valid[start] > RAPID_ENTRY_WINDOW:
+            start += 1
+        max_in_window = max(max_in_window, end - start + 1)
+    return max_in_window if max_in_window > RAPID_ENTRY_MAX_PER_WINDOW else 0
 
 
 def _answers_by_collection(db: Session, collection_ids: List[str]):
