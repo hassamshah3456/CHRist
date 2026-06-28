@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=22" />
+  <link rel="stylesheet" href="styles.css?v=23" />
 </head>
 <body>
 
@@ -158,11 +158,16 @@
       <div id="tab-collectors" class="tab-panel hidden">
         <div class="table-wrap">
           <table id="collectors-table">
+            <colgroup>
+              <col style="width:16%" /><col style="width:12%" /><col style="width:14%" />
+              <col style="width:7%" /><col style="width:8%" /><col style="width:12%" />
+              <col style="width:22%" /><col style="width:9%" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Collector</th><th>Phone</th><th>UPI</th>
                 <th>Collections</th><th>Status</th><th>Last active</th>
-                <th>Current location</th><th>Time in app</th><th></th>
+                <th>Current location</th><th>Time in app</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -207,10 +212,14 @@
         <div id="group-live-map"></div>
         <div class="table-wrap">
           <table id="group-members-table">
+            <colgroup>
+              <col style="width:8%" /><col style="width:18%" /><col style="width:8%" />
+              <col style="width:12%" /><col style="width:24%" /><col style="width:10%" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Status</th><th>Collector</th><th>Collections</th>
-                <th>Last seen</th><th>Current location</th><th>Time in app</th><th></th>
+                <th>Last seen</th><th>Current location</th><th>Time in app</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -351,6 +360,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=20"></script>
+<script src="app.js?v=21"></script>
 </body>
 </html>

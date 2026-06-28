@@ -600,20 +600,24 @@ function renderPagination() {
 function renderCollectors(rows) {
   const tbody = $("#collectors-table tbody");
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">No collectors yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No collectors yet.</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map((c) => `
     <tr class="${c.flagged ? "flagged-row" : ""}">
-      <td>${escapeHtml(c.name)}${flagBadge(c)}</td>
+      <td class="col-collector">
+        <div class="collector-cell">
+          <div>${escapeHtml(c.name)}${flagBadge(c)}</div>
+          <button type="button" class="btn-ghost btn-sm" data-edit-collector="${c.id}">Edit</button>
+        </div>
+      </td>
       <td>${escapeHtml(collectorContact(c))}</td>
       <td>${escapeHtml(c.upi_address || "—")}</td>
       <td><b>${c.total}</b></td>
       <td><span class="presence ${c.online ? "online" : ""}">${c.online ? "Online" : "Offline"}</span></td>
       <td>${fmtDate(c.last_seen || c.last_collection)}</td>
-      <td>${locationCell(c)}</td>
+      <td class="col-location">${locationCell(c)}</td>
       <td>${fmtDuration(c.app_seconds)}</td>
-      <td><button class="btn-ghost" data-edit-collector="${c.id}">Edit</button></td>
     </tr>`).join("");
   hydrateAddressSpans(tbody);
   tbody.querySelectorAll("[data-edit-collector]").forEach((b) =>
@@ -646,9 +650,13 @@ function collectorForm(c) {
     </div>`;
 }
 
-function openCollectorModal(c) {
+function openCollectorModal(c, { fromGroupPicker = false, group = null } = {}) {
+  if (fromGroupPicker) captureGroupModalState(group);
   openModal(collectorForm(c));
-  $("#col-cancel").addEventListener("click", closeModal);
+  $("#col-cancel").addEventListener("click", () => {
+    closeModal();
+    restoreGroupModalIfPending();
+  });
   $("#col-save").addEventListener("click", () => saveCollector(c.id));
 }
 
@@ -671,10 +679,10 @@ async function saveCollector(id) {
     });
     closeModal();
     await loadCollectors();
-    // If a group detail is open, refresh it so the edited row updates there too.
     if (typeof selectedGroup !== "undefined" && selectedGroup) {
       await refreshGroupLive(selectedGroup.id);
     }
+    restoreGroupModalIfPending();
   } catch (e) { alert(e.message); }
 }
 
@@ -749,6 +757,30 @@ async function exportCsv() {
 }
 
 /* ---------- modal ---------- */
+let pendingGroupModal = null;
+
+function captureGroupModalState(group) {
+  if (!$("#member-picker")) return;
+  pendingGroupModal = {
+    group,
+    name: $("#group-name").value,
+    checked: [...document.querySelectorAll("#member-picker input:checked")]
+      .map((input) => input.value),
+  };
+}
+
+function restoreGroupModalIfPending() {
+  if (!pendingGroupModal) return;
+  const ctx = pendingGroupModal;
+  pendingGroupModal = null;
+  openGroupModal(ctx.group);
+  $("#group-name").value = ctx.name;
+  ctx.checked.forEach((id) => {
+    const el = document.querySelector(`#member-picker input[value="${CSS.escape(id)}"]`);
+    if (el) el.checked = true;
+  });
+}
+
 function openModal(html) {
   $("#modal").innerHTML = html;
   $("#modal-backdrop").classList.remove("hidden");
@@ -879,18 +911,22 @@ async function openGroup(id, manageRefresh = true) {
 function renderGroupMembers(members) {
   const tbody = $("#group-members-table tbody");
   if (!members.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">This group has no collectors.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">This group has no collectors.</td></tr>`;
     return;
   }
   tbody.innerHTML = members.map((c) => `
     <tr class="${c.flagged ? "flagged-row" : ""}">
       <td><span class="presence ${c.online ? "online" : ""}">${c.online ? "Online" : "Offline"}</span></td>
-      <td><b>${escapeHtml(c.name)}</b>${flagBadge(c)}<br><small>${escapeHtml(collectorContact(c))}</small></td>
+      <td class="col-collector">
+        <div class="collector-cell">
+          <div><b>${escapeHtml(c.name)}</b>${flagBadge(c)}<br><small>${escapeHtml(collectorContact(c))}</small></div>
+          <button type="button" class="btn-ghost btn-sm" data-edit-collector="${c.id}">Edit</button>
+        </div>
+      </td>
       <td><b>${c.total}</b></td>
       <td>${fmtDate(c.last_seen)}</td>
-      <td>${locationCell(c)}</td>
+      <td class="col-location">${locationCell(c)}</td>
       <td>${fmtDuration(c.app_seconds)}</td>
-      <td><button class="btn-ghost" data-edit-collector="${c.id}">Edit</button></td>
     </tr>`).join("");
   hydrateAddressSpans(tbody);
   tbody.querySelectorAll("[data-edit-collector]").forEach((b) =>
@@ -995,6 +1031,7 @@ function groupForm(group) {
       <label class="member-option">
         <input type="checkbox" value="${c.id}" ${selected.has(c.id) ? "checked" : ""}>
         <span>${escapeHtml(c.name)}<small>${escapeHtml(collectorContact(c))} · ${c.total} collections</small></span>
+        <button type="button" class="btn-ghost btn-sm member-edit-btn" data-edit-collector="${c.id}">Edit</button>
       </label>`).join("")
     : `<div class="empty">No collectors available.</div>`;
   return `
@@ -1012,8 +1049,19 @@ function groupForm(group) {
 
 function openGroupModal(group = null) {
   openModal(groupForm(group));
-  $("#group-cancel").addEventListener("click", closeModal);
+  $("#group-cancel").addEventListener("click", () => {
+    pendingGroupModal = null;
+    closeModal();
+  });
   $("#group-save").addEventListener("click", () => saveGroup(group && group.id));
+  $("#member-picker").querySelectorAll(".member-edit-btn").forEach((b) => {
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const c = allCollectors.find((x) => x.id === b.dataset.editCollector);
+      if (c) openCollectorModal(c, { fromGroupPicker: true, group });
+    });
+  });
 }
 
 async function saveGroup(id) {

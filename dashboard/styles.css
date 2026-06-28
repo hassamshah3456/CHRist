@@ -161,6 +161,18 @@ tbody tr:hover { background: #f7f9fe; }
 }
 .pos-count { color: var(--muted); font-weight: 600; font-size: 13px; }
 
+.collector-cell {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 8px;
+}
+.collector-cell > div { flex: 1; min-width: 0; }
+.col-location {
+  overflow-wrap: anywhere; word-break: break-word;
+}
+.btn-sm {
+  padding: 4px 10px; font-size: 12px; flex-shrink: 0;
+}
+
 /* Wrap content so these tables stay full width and never scroll horizontally. */
 #collections-table,
 #collectors-table,
@@ -379,8 +391,9 @@ tr.grouped td:first-child { border-left: 3px solid var(--primary); }
   padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer;
 }
 .member-option:last-child { border-bottom: none; }
-.member-option span { display: flex; flex-direction: column; }
+.member-option span { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .member-option small { margin-top: 2px; }
+.member-option .member-edit-btn { margin-left: auto; flex-shrink: 0; }
 
 /* ---------- Instructions rich-text editor ---------- */
 .rt-toolbar { display: flex; gap: 6px; margin: 12px 0 8px; }
