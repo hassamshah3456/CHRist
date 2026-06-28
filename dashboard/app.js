@@ -909,9 +909,24 @@ async function loadPayments() {
     $("#rate-per-entry").value = data.config ? data.config.per_entry : 0;
     $("#rate-card-entry").value = data.config ? data.config.card_entry : 0;
     $("#rate-training").value = data.config ? data.config.training : 0;
+    renderPaymentsSummary(data.total_due ?? 0, data.total_paid ?? 0);
     renderPayments(data.collectors || []);
     await loadCardApprovals();
   } catch (e) { alert(e.message); }
+}
+
+function renderPaymentsSummary(totalDue, totalPaid) {
+  const wrap = $("#payments-summary");
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="pay-summary-card due">
+      <div class="label">Total due</div>
+      <div class="value">${fmtMoney(totalDue)}</div>
+    </div>
+    <div class="pay-summary-card paid">
+      <div class="label">Total paid</div>
+      <div class="value">${fmtMoney(totalPaid)}</div>
+    </div>`;
 }
 
 function filterPaymentCollectors(rows) {

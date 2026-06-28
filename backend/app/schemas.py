@@ -399,6 +399,8 @@ class CollectorPayment(BaseModel):
 class PaymentsOverview(BaseModel):
     config: PaymentConfig
     collectors: List[CollectorPayment]
+    total_due: float = 0
+    total_paid: float = 0
 
 
 class MyPayment(BaseModel):

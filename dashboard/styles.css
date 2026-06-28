@@ -205,6 +205,19 @@ tbody tr:hover { background: #f7f9fe; }
 .mix-stat.quad b { color: var(--danger); }
 .mix-stat.normal b { color: var(--success); }
 
+.payments-summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px; margin-bottom: 16px;
+}
+.pay-summary-card {
+  background: #fbfcff; border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px 16px;
+}
+.pay-summary-card .label { font-size: 12px; color: var(--muted); font-weight: 600; }
+.pay-summary-card .value { font-size: 26px; font-weight: 800; margin-top: 4px; }
+.pay-summary-card.due .value { color: var(--danger); }
+.pay-summary-card.paid .value { color: var(--success); }
+
 /* ---------- Payments ---------- */
 .rate-row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .rate-row label { display: flex; flex-direction: column; gap: 6px; font-size: 13px;

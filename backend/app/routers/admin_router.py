@@ -12,7 +12,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from .. import models, payments, schemas
@@ -749,7 +749,20 @@ def payments_overview(
             currency=cfg["currency"], last_payout=last,
         ))
     rows.sort(key=lambda r: r.due, reverse=True)
-    return schemas.PaymentsOverview(config=_payment_config_schema(cfg), collectors=rows)
+    total_due = round(sum(r.due for r in rows), 2)
+    total_paid = round(
+        float(
+            db.query(func.coalesce(func.sum(models.Payout.amount), 0)).scalar()
+            or 0
+        ),
+        2,
+    )
+    return schemas.PaymentsOverview(
+        config=_payment_config_schema(cfg),
+        collectors=rows,
+        total_due=total_due,
+        total_paid=total_paid,
+    )
 
 
 @router.put("/payment-config", response_model=schemas.PaymentConfig)
