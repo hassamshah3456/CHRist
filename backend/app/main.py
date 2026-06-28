@@ -113,8 +113,28 @@ def _relax_user_email_nullable():
         pass
 
 
+def _widen_answer_question_id():
+    """Follow-up answers use parent UUID + '__fu' (40 chars); widen column."""
+    dialect = engine.dialect.name
+    try:
+        with engine.begin() as conn:
+            if dialect == "mysql":
+                conn.execute(text(
+                    "ALTER TABLE answers MODIFY COLUMN question_id "
+                    "VARCHAR(64) NULL"
+                ))
+            elif dialect == "postgresql":
+                conn.execute(text(
+                    "ALTER TABLE answers ALTER COLUMN question_id "
+                    "TYPE VARCHAR(64)"
+                ))
+    except Exception:
+        pass
+
+
 _widen_settings_value()
 _relax_user_email_nullable()
+_widen_answer_question_id()
 
 try:
     with engine.begin() as conn:
