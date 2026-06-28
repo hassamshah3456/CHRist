@@ -1,4 +1,5 @@
 """Collection sync + listing endpoints (all require auth)."""
+import logging
 import os
 import uuid as uuidlib
 from datetime import datetime, timedelta
@@ -13,6 +14,7 @@ from ..config import settings
 from ..database import get_db
 
 router = APIRouter(prefix="/collections", tags=["collections"])
+logger = logging.getLogger(__name__)
 
 _ALLOWED_IMAGE_EXT = {".jpg", ".jpeg", ".png", ".webp"}
 _MAX_PHOTO_BYTES = 8 * 1024 * 1024  # 8 MB
@@ -47,63 +49,80 @@ def sync(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    """Idempotent upsert of device-side collections, keyed by client UUID."""
+    """Idempotent upsert of device-side collections, keyed by client UUID.
+
+    Each record is committed independently so a single problematic entry can
+    never block the rest of a collector's queue from syncing. Only the ids the
+    server actually persisted are returned, so the device keeps retrying the
+    failed ones without losing the successful ones.
+    """
     synced_ids: List[str] = []
     for item in payload.collections:
-        existing = None
-        if item.id:
-            existing = db.query(models.Collection).filter(
-                models.Collection.id == item.id
-            ).first()
+        try:
+            existing = None
+            if item.id:
+                existing = db.query(models.Collection).filter(
+                    models.Collection.id == item.id
+                ).first()
 
-        if existing:
-            # Already stored — just acknowledge it so the device clears it.
-            synced_ids.append(existing.id)
+            if existing:
+                # Already stored — just acknowledge it so the device clears it.
+                synced_ids.append(existing.id)
+                continue
+
+            record = models.Collection(
+                id=item.id,  # keep the client UUID when provided
+                user_id=user.id,
+                collector_name=user.name,
+                verbal_consent=item.verbal_consent,
+                phone=item.phone,
+                child_name=item.child_name,
+                child_age=item.child_age,
+                child_age_months=item.child_age_months,
+                child_sex=item.child_sex,
+                responder=item.responder,
+                responder_other=item.responder_other,
+                medical_record=item.medical_record,
+                medical_record_photo=item.medical_record_photo,
+                card_submitted=bool(item.card_submitted or item.medical_record_photo),
+                card_approved=False,
+                vaccines=item.vaccines,
+                location_lat=item.location_lat,
+                location_lng=item.location_lng,
+                location_address=item.location_address,
+                collected_at=item.collected_at or datetime.utcnow(),
+                synced_at=datetime.utcnow(),
+            )
+            db.add(record)
+            db.flush()  # populate generated id if client didn't send one
+
+            # Persist this collection's questionnaire answers. Snapshot fields
+            # are truncated to their column widths so an unusually long title
+            # or code can't fail the insert.
+            for a in item.answers:
+                db.add(models.Answer(
+                    collection_id=record.id,
+                    question_id=a.question_id,
+                    question_code=(a.question_code or "")[:64],
+                    question_title=a.question_title[:512] if a.question_title else None,
+                    qtype=a.qtype,
+                    value_bool=a.value_bool,
+                    value_number=a.value_number,
+                    value_text=a.value_text,
+                    photo_filename=a.photo_filename,
+                ))
+
+            db.commit()
+            synced_ids.append(record.id)
+        except Exception:
+            # Isolate the failure: roll back just this record and keep going so
+            # the collector's other pending entries still sync.
+            db.rollback()
+            logger.exception(
+                "Failed to sync collection %s for user %s", item.id, user.id
+            )
             continue
 
-        record = models.Collection(
-            id=item.id,  # keep the client UUID when provided
-            user_id=user.id,
-            collector_name=user.name,
-            verbal_consent=item.verbal_consent,
-            phone=item.phone,
-            child_name=item.child_name,
-            child_age=item.child_age,
-            child_age_months=item.child_age_months,
-            child_sex=item.child_sex,
-            responder=item.responder,
-            responder_other=item.responder_other,
-            medical_record=item.medical_record,
-            medical_record_photo=item.medical_record_photo,
-            card_submitted=bool(item.card_submitted or item.medical_record_photo),
-            card_approved=False,
-            vaccines=item.vaccines,
-            location_lat=item.location_lat,
-            location_lng=item.location_lng,
-            location_address=item.location_address,
-            collected_at=item.collected_at or datetime.utcnow(),
-            synced_at=datetime.utcnow(),
-        )
-        db.add(record)
-        db.flush()  # populate generated id if client didn't send one
-
-        # Persist this collection's questionnaire answers.
-        for a in item.answers:
-            db.add(models.Answer(
-                collection_id=record.id,
-                question_id=a.question_id,
-                question_code=a.question_code,
-                question_title=a.question_title,
-                qtype=a.qtype,
-                value_bool=a.value_bool,
-                value_number=a.value_number,
-                value_text=a.value_text,
-                photo_filename=a.photo_filename,
-            ))
-
-        synced_ids.append(record.id)
-
-    db.commit()
     return schemas.SyncResponse(synced_ids=synced_ids)
 
 
