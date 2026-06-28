@@ -114,12 +114,14 @@ def sync(
 
             db.commit()
             synced_ids.append(record.id)
-        except Exception:
+        except Exception as exc:
             # Isolate the failure: roll back just this record and keep going so
-            # the collector's other pending entries still sync.
+            # the collector's other pending entries still sync. The error reason
+            # is included inline so it's visible even when grepping the message.
             db.rollback()
             logger.exception(
-                "Failed to sync collection %s for user %s", item.id, user.id
+                "Failed to sync collection %s for user %s: %r",
+                item.id, user.id, exc,
             )
             continue
 
