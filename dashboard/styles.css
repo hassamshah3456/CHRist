@@ -331,7 +331,10 @@ tr.grouped td:first-child { border-left: 3px solid var(--primary); }
   display: flex; align-items: flex-end; justify-content: space-between;
   gap: 12px; margin: 20px 0 10px;
 }
-.group-live-head h3 { margin-bottom: 3px; }
+.group-payments-head {
+  margin: 24px 0 12px; padding-top: 18px; border-top: 1px solid var(--border);
+}
+.group-payments-head h3 { margin: 0; }
 .live-updated { color: var(--muted); font-size: 12px; white-space: nowrap; }
 #group-live-map {
   height: 390px; border-radius: 12px; margin-bottom: 16px;

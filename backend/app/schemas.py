@@ -269,6 +269,10 @@ class CollectorGroupDetail(BaseModel):
     online_count: int
     created_at: datetime
     members: List[CollectorSummary]
+    total_due: float = 0
+    total_paid: float = 0
+    currency: str = "₹"
+    payments: List["CollectorPayment"] = []
 
 
 class AdminStats(BaseModel):
@@ -419,3 +423,6 @@ class MyPayment(BaseModel):
     due: float
     training_paid: bool
     last_payout: Optional[PayoutOut] = None
+
+
+CollectorGroupDetail.model_rebuild()

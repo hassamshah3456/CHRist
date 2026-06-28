@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=19" />
 </head>
 <body>
 
@@ -206,6 +206,22 @@
             <tbody></tbody>
           </table>
         </div>
+        <div class="group-payments-head">
+          <h3>Group payouts</h3>
+        </div>
+        <div id="group-payments-summary" class="payments-summary"></div>
+        <div class="table-wrap">
+          <table id="group-payments-table">
+            <thead>
+              <tr>
+                <th>Collector</th><th>UPI</th><th>Total</th><th>Usual unpaid</th>
+                <th>Approved cards</th><th>Pending cards</th><th>Training</th>
+                <th>Due</th><th>Last payout</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
     </div>
 
@@ -229,7 +245,6 @@
         <div class="card-head">
           <div>
             <h3 style="margin-bottom:4px">Payment rates</h3>
-            <small>Amount paid per usual entry, approved card entry, and training (₹).</small>
           </div>
         </div>
         <div class="rate-row">
@@ -251,7 +266,6 @@
         <div class="card-head">
           <div>
             <h3 style="margin-bottom:4px">Collector payouts</h3>
-            <small>Due = usual unpaid × rate + approved card unpaid × card rate (+ training if unpaid).</small>
           </div>
           <input id="payments-search" class="search" placeholder="Search collector…" />
         </div>
@@ -327,6 +341,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=17"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

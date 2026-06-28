@@ -748,12 +748,17 @@ async function openGroup(id, manageRefresh = true) {
     `${selectedGroup.members_count} collectors · ${selectedGroup.collections_count} collections · ${selectedGroup.online_count} online`;
   renderGroupLiveMap(selectedGroup.members);
   if (manageRefresh) startGroupLiveRefresh();
+  renderGroupMembers(selectedGroup.members);
+  renderGroupPayments(selectedGroup);
+}
+
+function renderGroupMembers(members) {
   const tbody = $("#group-members-table tbody");
-  if (!selectedGroup.members.length) {
+  if (!members.length) {
     tbody.innerHTML = `<tr><td colspan="6" class="empty">This group has no collectors.</td></tr>`;
     return;
   }
-  tbody.innerHTML = selectedGroup.members.map((c) => `
+  tbody.innerHTML = members.map((c) => `
     <tr>
       <td><span class="presence ${c.online ? "online" : ""}">${c.online ? "Online" : "Offline"}</span></td>
       <td><b>${escapeHtml(c.name)}</b><br><small>${escapeHtml(collectorContact(c))}</small></td>
@@ -763,6 +768,25 @@ async function openGroup(id, manageRefresh = true) {
       <td>${fmtDuration(c.app_seconds)}</td>
     </tr>`).join("");
   hydrateAddressSpans(tbody);
+}
+
+function renderGroupPayments(group) {
+  if (group.currency) payCurrency = group.currency;
+  renderPaymentsSummary(group.total_due ?? 0, group.total_paid ?? 0, $("#group-payments-summary"));
+  renderPaymentTableRows(group.payments || [], $("#group-payments-table tbody"), {
+    emptyMessage: "No collectors in this group.",
+  });
+}
+
+async function refreshGroupLive(id) {
+  const data = await api(`/api/groups/${id}?period=${currentPeriod()}`);
+  selectedGroup.members = data.members;
+  selectedGroup.collections_count = data.collections_count;
+  selectedGroup.online_count = data.online_count;
+  $("#group-detail-summary").textContent =
+    `${data.members_count} collectors · ${data.collections_count} collections · ${data.online_count} online`;
+  renderGroupLiveMap(data.members);
+  renderGroupMembers(data.members);
 }
 
 function clearGroupDetail() {
@@ -815,7 +839,7 @@ function startGroupLiveRefresh() {
   groupRefreshTimer = setInterval(async () => {
     if (!selectedGroup || $("#view-groups").classList.contains("hidden")) return;
     try {
-      await openGroup(selectedGroup.id, false);
+      await refreshGroupLive(selectedGroup.id);
     } catch (e) {
       console.error("Live group refresh failed", e);
     }
@@ -915,10 +939,10 @@ async function loadPayments() {
   } catch (e) { alert(e.message); }
 }
 
-function renderPaymentsSummary(totalDue, totalPaid) {
-  const wrap = $("#payments-summary");
-  if (!wrap) return;
-  wrap.innerHTML = `
+function renderPaymentsSummary(totalDue, totalPaid, wrap) {
+  const el = wrap || $("#payments-summary");
+  if (!el) return;
+  el.innerHTML = `
     <div class="pay-summary-card due">
       <div class="label">Total due</div>
       <div class="value">${fmtMoney(totalDue)}</div>
@@ -927,6 +951,46 @@ function renderPaymentsSummary(totalDue, totalPaid) {
       <div class="label">Total paid</div>
       <div class="value">${fmtMoney(totalPaid)}</div>
     </div>`;
+}
+
+function paymentRowHtml(r) {
+  const last = r.last_payout
+    ? `${fmtMoney(r.last_payout.amount)} · ${fmtDate(r.last_payout.created_at)}`
+      + ` · ${r.last_payout.entries_count || 0} usual`
+      + ` / ${r.last_payout.card_entries_count || 0} card`
+    : "—";
+  const training = r.training_paid
+    ? `<span class="badge badge-yes">Paid</span>`
+    : `<span class="badge badge-no">Due</span>`;
+  return `<tr>
+    <td>${escapeHtml(r.name)}</td>
+    <td>${escapeHtml(r.upi_address || "—")}</td>
+    <td>${r.total_entries}</td>
+    <td>${r.regular_unpaid_entries || 0}</td>
+    <td>${r.approved_card_unpaid_entries || 0}</td>
+    <td>${r.pending_card_entries || 0}</td>
+    <td>${training}</td>
+    <td><b>${fmtMoney(r.due)}</b></td>
+    <td>${last}</td>
+    <td><button class="btn-primary pay-btn" data-pay="${r.id}"
+          data-name="${escapeHtml(r.name)}" data-due="${fmtMoney(r.due)}"
+          ${r.due > 0 ? "" : "disabled"}>Mark paid</button></td>
+  </tr>`;
+}
+
+function renderPaymentTableRows(rows, tbody, opts = {}) {
+  const emptyMessage = opts.emptyMessage || "No collectors yet.";
+  const filtered = opts.filterFn ? opts.filterFn(rows) : rows;
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">${
+      rows.length && opts.filterFn ? "No collectors match your search." : emptyMessage
+    }</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(paymentRowHtml).join("");
+  tbody.querySelectorAll("[data-pay]").forEach((b) =>
+    b.addEventListener("click", () =>
+      markPaid(b.dataset.pay, b.dataset.name, b.dataset.due)));
 }
 
 function filterPaymentCollectors(rows) {
@@ -940,41 +1004,10 @@ function filterPaymentCollectors(rows) {
 
 function renderPayments(rows) {
   lastPaymentCollectors = rows;
-  const filtered = filterPaymentCollectors(rows);
-  const tbody = $("#payments-table tbody");
-  if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty">${
-      rows.length ? "No collectors match your search." : "No collectors yet."
-    }</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = filtered.map((r) => {
-    const last = r.last_payout
-      ? `${fmtMoney(r.last_payout.amount)} · ${fmtDate(r.last_payout.created_at)}`
-        + ` · ${r.last_payout.entries_count || 0} usual`
-        + ` / ${r.last_payout.card_entries_count || 0} card`
-      : "—";
-    const training = r.training_paid
-      ? `<span class="badge badge-yes">Paid</span>`
-      : `<span class="badge badge-no">Due</span>`;
-    return `<tr>
-      <td>${escapeHtml(r.name)}</td>
-      <td>${escapeHtml(r.upi_address || "—")}</td>
-      <td>${r.total_entries}</td>
-      <td>${r.regular_unpaid_entries || 0}</td>
-      <td>${r.approved_card_unpaid_entries || 0}</td>
-      <td>${r.pending_card_entries || 0}</td>
-      <td>${training}</td>
-      <td><b>${fmtMoney(r.due)}</b></td>
-      <td>${last}</td>
-      <td><button class="btn-primary pay-btn" data-pay="${r.id}"
-            data-name="${escapeHtml(r.name)}" data-due="${fmtMoney(r.due)}"
-            ${r.due > 0 ? "" : "disabled"}>Mark paid</button></td>
-    </tr>`;
-  }).join("");
-  tbody.querySelectorAll("[data-pay]").forEach((b) =>
-    b.addEventListener("click", () =>
-      markPaid(b.dataset.pay, b.dataset.name, b.dataset.due)));
+  renderPaymentTableRows(rows, $("#payments-table tbody"), {
+    filterFn: filterPaymentCollectors,
+    emptyMessage: "No collectors yet.",
+  });
 }
 
 async function loadCardApprovals() {
@@ -1047,7 +1080,11 @@ async function markPaid(id, name, due) {
   if (!confirm(`Mark ${name} as paid ${due}?\nThis resets their counter; they'll see it in the app.`)) return;
   try {
     await api(`/api/collectors/${id}/pay`, { method: "POST" });
-    loadPayments();
+    if (selectedGroup && !$("#view-groups").classList.contains("hidden")) {
+      await openGroup(selectedGroup.id, false);
+    } else {
+      loadPayments();
+    }
   } catch (e) { alert(e.message); }
 }
 

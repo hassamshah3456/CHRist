@@ -564,6 +564,9 @@ def group_detail(
 ):
     group = _group_or_404(db, group_id)
     members = _collector_summaries(db, list(group.members), period)
+    payment_rows, total_due, total_paid, cfg = _collector_payments(
+        db, list(group.members)
+    )
     return schemas.CollectorGroupDetail(
         id=group.id,
         name=group.name,
@@ -572,6 +575,10 @@ def group_detail(
         online_count=sum(1 for m in members if m.online),
         created_at=group.created_at,
         members=members,
+        total_due=total_due,
+        total_paid=total_paid,
+        currency=cfg["currency"],
+        payments=payment_rows,
     )
 
 
@@ -721,16 +728,15 @@ def _payment_config_schema(cfg: dict) -> schemas.PaymentConfig:
     )
 
 
-@router.get("/payments", response_model=schemas.PaymentsOverview)
-def payments_overview(
-    db: Session = Depends(get_db),
-    admin: models.User = Depends(get_current_admin),
-):
-    """Per-collector payout status plus the current rates."""
+def _collector_payments(db: Session, users: List[models.User]):
+    """Payout rows and totals for a list of collectors."""
     cfg = payments.get_config(db)
-    users = [u for u in db.query(models.User).all() if not u.is_admin]
     rows = []
+    user_ids = []
     for u in users:
+        if u.is_admin:
+            continue
+        user_ids.append(u.id)
         due = payments.collector_due(db, u, cfg)
         last = payments.last_payout(db, u.id)
         rows.append(schemas.CollectorPayment(
@@ -750,13 +756,28 @@ def payments_overview(
         ))
     rows.sort(key=lambda r: r.due, reverse=True)
     total_due = round(sum(r.due for r in rows), 2)
-    total_paid = round(
-        float(
-            db.query(func.coalesce(func.sum(models.Payout.amount), 0)).scalar()
-            or 0
-        ),
-        2,
-    )
+    total_paid = 0.0
+    if user_ids:
+        total_paid = round(
+            float(
+                db.query(func.coalesce(func.sum(models.Payout.amount), 0))
+                .filter(models.Payout.user_id.in_(user_ids))
+                .scalar()
+                or 0
+            ),
+            2,
+        )
+    return rows, total_due, total_paid, cfg
+
+
+@router.get("/payments", response_model=schemas.PaymentsOverview)
+def payments_overview(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Per-collector payout status plus the current rates."""
+    users = [u for u in db.query(models.User).all() if not u.is_admin]
+    rows, total_due, total_paid, cfg = _collector_payments(db, users)
     return schemas.PaymentsOverview(
         config=_payment_config_schema(cfg),
         collectors=rows,
