@@ -91,7 +91,7 @@ small { color: var(--muted); font-weight: 400; }
 }
 
 /* ---------- Layout ---------- */
-.container { max-width: 1200px; margin: 0 auto; padding: 22px; }
+.container { width: 100%; max-width: none; margin: 0; padding: 22px 28px; }
 .card {
   background: var(--surface); border-radius: 16px; padding: 18px;
   box-shadow: var(--shadow); margin-bottom: 18px;
