@@ -204,6 +204,9 @@ tbody tr:hover { background: #f7f9fe; }
 .mix-stat.triple b { color: #b06a00; }
 .mix-stat.quad b { color: var(--danger); }
 .mix-stat.normal b { color: var(--success); }
+.mix-stat.diarrhea-yes b { color: #c0392b; }
+.mix-stat.diarrhea-no b { color: var(--success); }
+.mix-stat.diarrhea-pct b { color: #7a5af8; }
 
 .payments-summary {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

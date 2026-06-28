@@ -232,6 +232,7 @@ async function loadStats() {
   renderResponderBars(s.responder_breakdown || []);
   renderAgeBars(s.age_breakdown || []);
   renderPositivityMix(s);
+  renderDiarrhea(s);
   renderPositivity(s.question_stats || []);
 }
 
@@ -309,6 +310,7 @@ function renderKpis(s) {
     { label: "This week", value: s.this_week, color: "#00b8a9" },
     { label: "This month", value: s.this_month, color: "#7a5af8" },
     { label: "Triple positive (3+)", value: s.triple_positive ?? 0, color: "#b06a00" },
+    { label: "Had diarrhea", value: s.diarrhea_yes ?? 0, color: "#c0392b" },
     { label: "Collectors", value: s.collectors_count, color: "#f0a500" },
     { label: "Avg age", value: s.avg_age != null ? s.avg_age + " yrs" : "—", color: "#e2574c" },
   ];
@@ -417,6 +419,48 @@ function renderPositivityMix(s) {
       <span class="mix-stat triple"><b>${triplePlus}</b> triple positive (3+, includes quadruple)</span>
       <span class="mix-stat quad"><b>${quad}</b> quadruple only (4+)</span>`;
   }
+}
+
+function renderDiarrhea(s) {
+  const yes = s.diarrhea_yes ?? 0;
+  const answered = s.diarrhea_answered ?? 0;
+  const no = Math.max(answered - yes, 0);
+  const total = s.total ?? 0;
+  const label = s.diarrhea_label || "Diarrhea";
+  const pctAnswered = (n) => (answered ? Math.round((n / answered) * 100) : 0);
+  const pctTotal = yes && total ? Math.round((yes / total) * 100) : 0;
+
+  const title = $("#diarrhea-section-title");
+  if (title) title.textContent = label;
+
+  const stats = $("#diarrhea-stats");
+  if (stats) {
+    stats.innerHTML = `
+      <span class="mix-stat diarrhea-yes"><b>${yes}</b> reported Yes (${pctAnswered(yes)}% of answers)</span>
+      <span class="mix-stat diarrhea-no"><b>${no}</b> reported No</span>
+      <span class="mix-stat diarrhea-pct"><b>${pctTotal}%</b> of all submissions</span>`;
+  }
+
+  makeOrReplace("chart-diarrhea", {
+    type: "bar",
+    data: {
+      labels: ["Reported diarrhea", "No diarrhea", "Not answered"],
+      datasets: [{
+        data: [yes, no, Math.max(total - answered, 0)],
+        backgroundColor: ["#c0392b", "#2ba84a", "#d0d5dd"],
+        borderRadius: 6,
+        maxBarThickness: 44,
+      }],
+    },
+    options: {
+      indexAxis: "y",
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, ticks: { precision: 0 } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
 }
 
 function renderAgeBars(items) {

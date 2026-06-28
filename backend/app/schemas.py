@@ -284,6 +284,9 @@ class AdminStats(BaseModel):
     positivity_normal: int = 0   # < 3 Yes
     positivity_triple: int = 0   # exactly 3 Yes (subset of triple_positive)
     positivity_quadruple: int = 0  # 4+ Yes (included in triple_positive)
+    diarrhea_yes: int = 0
+    diarrhea_answered: int = 0
+    diarrhea_label: str = "Diarrhea"
     consent_yes: int
     consent_no: int
     collectors_count: int

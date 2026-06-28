@@ -91,6 +91,31 @@ def _count_triple_positive(db: Session) -> int:
     return triple + quadruple
 
 
+def _diarrhea_counts(db: Session):
+    """Submissions that answered Yes to a diarrhea screening question."""
+    rows = db.query(
+        models.Answer.collection_id,
+        models.Answer.value_bool,
+        models.Answer.question_title,
+    ).filter(
+        models.Answer.value_bool.isnot(None),
+        or_(
+            models.Answer.question_code.ilike("%diarr%"),
+            models.Answer.question_title.ilike("%diarr%"),
+        ),
+    ).all()
+    answered = set()
+    yes = set()
+    label = "Diarrhea"
+    for cid, value_bool, title in rows:
+        answered.add(cid)
+        if value_bool:
+            yes.add(cid)
+        if title:
+            label = title
+    return len(yes), len(answered), label
+
+
 def _yes_counts_by_collection(db: Session) -> Counter:
     codes = _primary_yes_no_codes(db)
     q = db.query(models.Answer.collection_id).filter(
@@ -343,6 +368,7 @@ def admin_stats(
     collectors = _collector_summaries(db, users)
     positivity_normal, positivity_triple, positivity_quadruple = _positivity_counts(db)
     triple_positive = positivity_triple + positivity_quadruple
+    diarrhea_yes, diarrhea_answered, diarrhea_label = _diarrhea_counts(db)
 
     return schemas.AdminStats(
         total=total,
@@ -353,6 +379,9 @@ def admin_stats(
         positivity_normal=positivity_normal,
         positivity_triple=positivity_triple,
         positivity_quadruple=positivity_quadruple,
+        diarrhea_yes=diarrhea_yes,
+        diarrhea_answered=diarrhea_answered,
+        diarrhea_label=diarrhea_label,
         consent_yes=consent_yes,
         consent_no=total - consent_yes,
         collectors_count=len(collectors),

@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=19" />
+  <link rel="stylesheet" href="styles.css?v=20" />
 </head>
 <body>
 
@@ -89,6 +89,12 @@
         <div id="positivity-mix-stats" class="mix-stats"></div>
         <canvas id="chart-positivity-mix" height="140"></canvas>
       </div>
+    </section>
+
+    <section class="card chart-compact">
+      <h3 id="diarrhea-section-title">Diarrhea reporting</h3>
+      <div id="diarrhea-stats" class="mix-stats"></div>
+      <canvas id="chart-diarrhea" height="100"></canvas>
     </section>
 
     <section class="card">
@@ -341,6 +347,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=19"></script>
+<script src="app.js?v=20"></script>
 </body>
 </html>
