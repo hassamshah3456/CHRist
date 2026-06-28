@@ -894,6 +894,9 @@ $("#delete-group-btn").addEventListener("click", deleteSelectedGroup);
 
 /* ---------- payments ---------- */
 let payCurrency = "₹";
+let lastPaymentCollectors = [];
+let paymentsSearchDebounce = null;
+
 function fmtMoney(v) {
   const n = Number(v) || 0;
   return payCurrency + (n % 1 === 0 ? n : n.toFixed(2));
@@ -911,13 +914,26 @@ async function loadPayments() {
   } catch (e) { alert(e.message); }
 }
 
+function filterPaymentCollectors(rows) {
+  const q = ($("#payments-search")?.value || "").trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((r) =>
+    [r.name, r.phone, r.email, r.upi_address, r.upi_name]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q)));
+}
+
 function renderPayments(rows) {
+  lastPaymentCollectors = rows;
+  const filtered = filterPaymentCollectors(rows);
   const tbody = $("#payments-table tbody");
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty">No collectors yet.</td></tr>`;
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">${
+      rows.length ? "No collectors match your search." : "No collectors yet."
+    }</td></tr>`;
     return;
   }
-  tbody.innerHTML = rows.map((r) => {
+  tbody.innerHTML = filtered.map((r) => {
     const last = r.last_payout
       ? `${fmtMoney(r.last_payout.amount)} · ${fmtDate(r.last_payout.created_at)}`
         + ` · ${r.last_payout.entries_count || 0} usual`
@@ -1022,6 +1038,16 @@ async function markPaid(id, name, due) {
 
 const _saveRatesBtn = $("#save-rates-btn");
 if (_saveRatesBtn) _saveRatesBtn.addEventListener("click", saveRates);
+const _paymentsSearch = $("#payments-search");
+if (_paymentsSearch) {
+  _paymentsSearch.addEventListener("input", () => {
+    clearTimeout(paymentsSearchDebounce);
+    paymentsSearchDebounce = setTimeout(
+      () => renderPayments(lastPaymentCollectors),
+      300,
+    );
+  });
+}
 
 /* ---------- questionnaire management ---------- */
 const QTYPES = [

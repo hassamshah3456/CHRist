@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=15" />
+  <link rel="stylesheet" href="styles.css?v=16" />
 </head>
 <body>
 
@@ -249,8 +249,11 @@
 
       <section class="card">
         <div class="card-head">
-          <h3>Collector payouts</h3>
-          <small>Due = usual unpaid × rate + approved card unpaid × card rate (+ training if unpaid).</small>
+          <div>
+            <h3 style="margin-bottom:4px">Collector payouts</h3>
+            <small>Due = usual unpaid × rate + approved card unpaid × card rate (+ training if unpaid).</small>
+          </div>
+          <input id="payments-search" class="search" placeholder="Search collector…" />
         </div>
         <div class="table-wrap">
           <table id="payments-table">
@@ -323,6 +326,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=14"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>
