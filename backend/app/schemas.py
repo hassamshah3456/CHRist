@@ -277,6 +277,9 @@ class AdminStats(BaseModel):
     this_week: int
     this_month: int
     triple_positive: int = 0  # submissions with 3+ Yes on top-level yes/no questions
+    positivity_normal: int = 0   # < 3 Yes
+    positivity_triple: int = 0   # exactly 3 Yes
+    positivity_quadruple: int = 0  # 4+ Yes
     consent_yes: int
     consent_no: int
     collectors_count: int
@@ -313,6 +316,26 @@ class AdminCollectionOut(BaseModel):
     location_address: Optional[str] = None
     collected_at: datetime
     answers: List[AnswerOut] = []
+
+
+class AdminCollectionsPage(BaseModel):
+    items: List[AdminCollectionOut]
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+class CollectionMapPoint(BaseModel):
+    id: str
+    child_name: Optional[str] = None
+    collector_name: str
+    child_age: Optional[int] = None
+    child_age_months: Optional[int] = None
+    verbal_consent: bool
+    location_lat: Optional[float] = None
+    location_lng: Optional[float] = None
+    collected_at: datetime
 
 
 # ---------- Payments ----------

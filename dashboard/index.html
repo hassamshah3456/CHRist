@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=10" />
+  <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 <body>
 
@@ -74,14 +74,9 @@
         <canvas id="chart-trend" height="120"></canvas>
       </div>
       <div class="card">
-        <h3>Verbal consent</h3>
-        <canvas id="chart-consent" height="120"></canvas>
+        <h3>Responder</h3>
+        <canvas id="chart-responder" height="120"></canvas>
       </div>
-    </section>
-
-    <section class="card">
-      <h3>Responder</h3>
-      <canvas id="chart-responder" height="120"></canvas>
     </section>
 
     <section class="grid-2">
@@ -89,12 +84,17 @@
         <h3>Child age distribution</h3>
         <canvas id="chart-age" height="120"></canvas>
       </div>
-      <div class="card">
-        <div class="card-head">
-          <h3>Screening positivity <small>(Yes %)</small></h3>
-        </div>
-        <div id="positivity" class="positivity"></div>
+      <div class="card chart-compact">
+        <h3>Screening positivity mix</h3>
+        <canvas id="chart-positivity-mix" height="120"></canvas>
       </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h3>Screening positivity <small>(Yes % per question)</small></h3>
+      </div>
+      <div id="positivity" class="positivity"></div>
     </section>
 
     <!-- Map -->
@@ -141,6 +141,7 @@
             <tbody></tbody>
           </table>
         </div>
+        <div id="collections-pagination" class="pagination"></div>
       </div>
 
       <div id="tab-collectors" class="tab-panel hidden">
@@ -321,6 +322,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=10"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>

@@ -12,6 +12,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from .. import models, payments, schemas
@@ -62,8 +63,8 @@ def _primary_yes_no_codes(db: Session) -> set:
     return {q.code for q in rows}
 
 
-def _count_triple_positive(db: Session) -> int:
-    """Submissions with 3+ Yes answers on top-level yes/no screening questions."""
+def _positivity_counts(db: Session):
+    """Mutually exclusive buckets: normal (<3 Yes), triple (3), quadruple (4+)."""
     codes = _primary_yes_no_codes(db)
     q = db.query(models.Answer).filter(models.Answer.value_bool == True)  # noqa: E712
     if codes:
@@ -71,7 +72,117 @@ def _count_triple_positive(db: Session) -> int:
     else:
         q = q.filter(models.Answer.qtype == "yes_no")
     yes_by_collection = Counter(a.collection_id for a in q.all())
-    return sum(1 for n in yes_by_collection.values() if n >= 3)
+    all_ids = [row[0] for row in db.query(models.Collection.id).all()]
+    normal = triple = quadruple = 0
+    for cid in all_ids:
+        n = yes_by_collection.get(cid, 0)
+        if n >= 4:
+            quadruple += 1
+        elif n >= 3:
+            triple += 1
+        else:
+            normal += 1
+    return normal, triple, quadruple
+
+
+def _count_triple_positive(db: Session) -> int:
+    """Submissions with 3+ Yes answers on top-level yes/no screening questions."""
+    _, triple, quadruple = _positivity_counts(db)
+    return triple + quadruple
+
+
+def _yes_counts_by_collection(db: Session) -> Counter:
+    codes = _primary_yes_no_codes(db)
+    q = db.query(models.Answer.collection_id).filter(
+        models.Answer.value_bool == True  # noqa: E712
+    )
+    if codes:
+        q = q.filter(models.Answer.question_code.in_(codes))
+    else:
+        q = q.filter(models.Answer.qtype == "yes_no")
+    return Counter(row[0] for row in q.all())
+
+
+def _apply_collection_search(q, search: Optional[str]):
+    if not search or not search.strip():
+        return q
+    term = f"%{search.strip()}%"
+    return q.filter(or_(
+        models.Collection.collector_name.ilike(term),
+        models.Collection.child_name.ilike(term),
+        models.Collection.phone.ilike(term),
+        models.Collection.location_address.ilike(term),
+        models.User.phone.ilike(term),
+        models.User.email.ilike(term),
+    ))
+
+
+def _apply_positive_filter(q, db: Session, positive: str):
+    if positive not in ("triple", "quad"):
+        return q
+    yes_by = _yes_counts_by_collection(db)
+    min_yes = 4 if positive == "quad" else 3
+    ids = [cid for cid, n in yes_by.items() if n >= min_yes]
+    if not ids:
+        return q.filter(False)  # noqa: E712
+    return q.filter(models.Collection.id.in_(ids))
+
+
+def _admin_collection_out(c, u, answers) -> schemas.AdminCollectionOut:
+    return schemas.AdminCollectionOut(
+        id=c.id,
+        user_id=c.user_id,
+        collector_name=c.collector_name,
+        collector_email=u.email,
+        collector_phone=u.phone,
+        verbal_consent=c.verbal_consent,
+        phone=c.phone,
+        child_name=c.child_name,
+        child_age=c.child_age,
+        child_age_months=c.child_age_months,
+        child_sex=c.child_sex,
+        responder=c.responder,
+        responder_other=c.responder_other,
+        medical_record=c.medical_record,
+        medical_record_photo=c.medical_record_photo,
+        card_submitted=c.card_submitted,
+        card_approved=c.card_approved,
+        vaccines=c.vaccines,
+        location_lat=c.location_lat,
+        location_lng=c.location_lng,
+        location_address=c.location_address,
+        collected_at=c.collected_at,
+        answers=[
+            schemas.AnswerOut(
+                question_code=a.question_code,
+                question_title=a.question_title,
+                qtype=a.qtype,
+                value_bool=a.value_bool,
+                value_number=a.value_number,
+                value_text=a.value_text,
+                photo_filename=a.photo_filename,
+            )
+            for a in answers
+        ],
+    )
+
+
+def _collections_query(
+    db: Session,
+    period: str,
+    collector_id: Optional[str] = None,
+    search: Optional[str] = None,
+    positive: str = "all",
+):
+    q = db.query(models.Collection, models.User).join(
+        models.User, models.Collection.user_id == models.User.id
+    )
+    q = _apply_period(q, period)
+    if collector_id:
+        q = q.filter(models.Collection.user_id == collector_id)
+    q = _apply_collection_search(q, search)
+    q = _apply_positive_filter(q, db, positive)
+    return q
 
 
 def _apply_period(query, period: str):
@@ -230,7 +341,8 @@ def admin_stats(
     )
 
     collectors = _collector_summaries(db, users)
-    triple_positive = _count_triple_positive(db)
+    positivity_normal, positivity_triple, positivity_quadruple = _positivity_counts(db)
+    triple_positive = positivity_triple + positivity_quadruple
 
     return schemas.AdminStats(
         total=total,
@@ -238,6 +350,9 @@ def admin_stats(
         this_week=n_week,
         this_month=n_month,
         triple_positive=triple_positive,
+        positivity_normal=positivity_normal,
+        positivity_triple=positivity_triple,
+        positivity_quadruple=positivity_quadruple,
         consent_yes=consent_yes,
         consent_no=total - consent_yes,
         collectors_count=len(collectors),
@@ -260,60 +375,63 @@ def admin_stats(
     )
 
 
-@router.get("/collections", response_model=List[schemas.AdminCollectionOut])
+@router.get("/collections", response_model=schemas.AdminCollectionsPage)
 def admin_collections(
     period: str = Query("all", pattern="^(today|yesterday|week|month|all)$"),
     collector_id: Optional[str] = None,
+    search: Optional[str] = None,
+    positive: str = Query("all", pattern="^(all|triple|quad)$"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    q = db.query(models.Collection, models.User).join(
-        models.User, models.Collection.user_id == models.User.id
+    q = _collections_query(db, period, collector_id, search, positive)
+    total = q.count()
+    pages = max(1, (total + page_size - 1) // page_size) if total else 1
+    page = min(page, pages)
+    rows = (
+        q.order_by(models.Collection.collected_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
     )
-    q = _apply_period(q, period)
-    if collector_id:
-        q = q.filter(models.Collection.user_id == collector_id)
-    rows = q.order_by(models.Collection.collected_at.desc()).all()
     answers = _answers_by_collection(db, [c.id for c, _ in rows])
+    return schemas.AdminCollectionsPage(
+        items=[
+            _admin_collection_out(c, u, answers.get(c.id, []))
+            for c, u in rows
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=pages,
+    )
 
+
+@router.get("/collections/map", response_model=List[schemas.CollectionMapPoint])
+def admin_collections_map(
+    period: str = Query("all", pattern="^(today|yesterday|week|month|all)$"),
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Lightweight geo points for the dashboard map (no answers payload)."""
+    q = _collections_query(db, period)
+    rows = q.order_by(models.Collection.collected_at.desc()).all()
     return [
-        schemas.AdminCollectionOut(
+        schemas.CollectionMapPoint(
             id=c.id,
-            user_id=c.user_id,
-            collector_name=c.collector_name,
-            collector_email=u.email,
-            collector_phone=u.phone,
-            verbal_consent=c.verbal_consent,
-            phone=c.phone,
             child_name=c.child_name,
+            collector_name=c.collector_name,
             child_age=c.child_age,
             child_age_months=c.child_age_months,
-            child_sex=c.child_sex,
-            responder=c.responder,
-            responder_other=c.responder_other,
-            medical_record=c.medical_record,
-            medical_record_photo=c.medical_record_photo,
-            card_submitted=c.card_submitted,
-            card_approved=c.card_approved,
-            vaccines=c.vaccines,
+            verbal_consent=c.verbal_consent,
             location_lat=c.location_lat,
             location_lng=c.location_lng,
-            location_address=c.location_address,
             collected_at=c.collected_at,
-            answers=[
-                schemas.AnswerOut(
-                    question_code=a.question_code,
-                    question_title=a.question_title,
-                    qtype=a.qtype,
-                    value_bool=a.value_bool,
-                    value_number=a.value_number,
-                    value_text=a.value_text,
-                    photo_filename=a.photo_filename,
-                )
-                for a in answers.get(c.id, [])
-            ],
         )
-        for c, u in rows
+        for c, _ in rows
+        if c.location_lat is not None and c.location_lng is not None
     ]
 
 

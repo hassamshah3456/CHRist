@@ -167,6 +167,17 @@ tbody tr:hover { background: #f7f9fe; }
   line-height: 1;
 }
 .row-del:hover { background: #fdeceb; }
+
+.pagination {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px; margin-top: 14px; padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.page-info { font-size: 13px; color: var(--muted); }
+.page-controls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.page-num { font-size: 13px; font-weight: 600; padding: 0 6px; white-space: nowrap; }
+.pagination .btn-ghost:disabled { opacity: .4; cursor: default; }
+.pagination .search { min-width: 110px; }
 .empty { text-align: center; color: var(--muted); padding: 30px; }
 .foot { text-align: center; color: var(--muted); font-size: 12px; padding: 10px 0 30px; }
 
@@ -182,6 +193,9 @@ tbody tr:hover { background: #f7f9fe; }
 .pos-track { height: 8px; background: #eef1f8; border-radius: 6px; overflow: hidden; }
 .pos-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent));
   border-radius: 6px; transition: width .4s ease; }
+
+/* Compact doughnut charts (positivity mix) */
+.chart-compact canvas { max-height: 220px; }
 
 /* ---------- Payments ---------- */
 .rate-row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }

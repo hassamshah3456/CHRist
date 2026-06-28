@@ -15,6 +15,11 @@ let lastCollections = [];
 let allCollectors = [];
 let currentPositiveFilter = "all";
 let primaryYesNoCodes = null;
+let submissionsPage = 1;
+let submissionsPageSize = 25;
+let submissionsTotal = 0;
+let submissionsPages = 1;
+let searchDebounce = null;
 let groups = [];
 let selectedGroup = null;
 let groupMap;
@@ -214,7 +219,7 @@ function currentPeriod() { return $("#period").value; }
 
 async function refreshAll() {
   try {
-    await Promise.all([loadStats(), loadCollections(), loadCollectors()]);
+    await Promise.all([loadStats(), loadCollections(1), loadMapCollections(), loadCollectors()]);
   } catch (e) {
     console.error(e);
   }
@@ -224,17 +229,34 @@ async function loadStats() {
   const s = await api("/api/stats");
   renderKpis(s);
   renderTrend(s.daily);
-  renderConsent(s.consent_yes, s.consent_no);
-  renderBreakdown("chart-responder", s.responder_breakdown, ["#1e4db7", "#00b8a9", "#f0a500", "#7a5af8", "#e2574c"]);
+  renderResponderBars(s.responder_breakdown || []);
   renderAgeBars(s.age_breakdown || []);
+  renderPositivityMix(s);
   renderPositivity(s.question_stats || []);
 }
 
-async function loadCollections() {
-  const data = await api("/api/collections?period=" + currentPeriod());
-  lastCollections = data;
+async function loadCollections(page = submissionsPage) {
+  const searchVal = ($("#search").value || "").trim();
+  const params = new URLSearchParams({
+    period: currentPeriod(),
+    page: String(page),
+    page_size: String(submissionsPageSize),
+    positive: currentPositiveFilter,
+  });
+  if (searchVal) params.set("search", searchVal);
+  const data = await api("/api/collections?" + params.toString());
+  lastCollections = data.items || [];
+  submissionsPage = data.page || 1;
+  submissionsTotal = data.total || 0;
+  submissionsPages = data.pages || 1;
+  submissionsPageSize = data.page_size || submissionsPageSize;
   await ensureQuestionCodes();
-  renderCollections(data);
+  renderCollections(lastCollections);
+  renderPagination();
+}
+
+async function loadMapCollections() {
+  const data = await api("/api/collections/map?period=" + currentPeriod());
   renderMapCollections(data);
 }
 
@@ -327,25 +349,43 @@ function renderTrend(daily) {
   });
 }
 
-function renderConsent(yes, no) {
-  makeOrReplace("chart-consent", {
-    type: "doughnut",
+function renderResponderBars(items) {
+  makeOrReplace("chart-responder", {
+    type: "bar",
     data: {
-      labels: ["Yes", "No"],
-      datasets: [{ data: [yes, no], backgroundColor: ["#2ba84a", "#e2574c"] }],
+      labels: items.map((i) => cap(i.label)),
+      datasets: [{
+        data: items.map((i) => i.count),
+        backgroundColor: ["#1e4db7", "#00b8a9", "#f0a500", "#7a5af8", "#e2574c"],
+        borderRadius: 6,
+        maxBarThickness: 46,
+      }],
     },
-    options: { plugins: { legend: { position: "bottom" } }, cutout: "62%" },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
   });
 }
 
-function renderBreakdown(id, items, colors) {
-  makeOrReplace(id, {
+function renderPositivityMix(s) {
+  const normal = s.positivity_normal ?? 0;
+  const triple = s.positivity_triple ?? 0;
+  const quad = s.positivity_quadruple ?? 0;
+  makeOrReplace("chart-positivity-mix", {
     type: "doughnut",
     data: {
-      labels: items.map((i) => cap(i.label)),
-      datasets: [{ data: items.map((i) => i.count), backgroundColor: colors }],
+      labels: ["Normal (<3 Yes)", "Triple (3 Yes)", "Quadruple (4+ Yes)"],
+      datasets: [{
+        data: [normal, triple, quad],
+        backgroundColor: ["#2ba84a", "#b06a00", "#e2574c"],
+      }],
     },
-    options: { plugins: { legend: { position: "bottom" } }, cutout: "62%" },
+    options: {
+      plugins: { legend: { position: "bottom" } },
+      cutout: "58%",
+      maintainAspectRatio: true,
+    },
   });
 }
 
@@ -402,29 +442,20 @@ function _rowHtml(r, grouped) {
 }
 
 function renderCollections(rows) {
-  const q = ($("#search").value || "").toLowerCase();
-  let filtered = q
-    ? rows.filter((r) => JSON.stringify(r).toLowerCase().includes(q))
-    : rows.slice();
-  if (currentPositiveFilter === "triple") {
-    filtered = filtered.filter((r) => positiveCount(r) >= 3);
-  } else if (currentPositiveFilter === "quad") {
-    filtered = filtered.filter((r) => positiveCount(r) >= 4);
-  }
   const tbody = $("#collections-table tbody");
-  if (!filtered.length) {
+  if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="8" class="empty">No submissions found.</td></tr>`;
     return;
   }
 
-  // Group children sharing the same phone number (siblings).
+  // Group children sharing the same phone number (siblings) within this page.
   const counts = {};
-  filtered.forEach((r) => {
+  rows.forEach((r) => {
     if (r.phone) counts[r.phone] = (counts[r.phone] || 0) + 1;
   });
   const groups = {};
   const singles = [];
-  filtered.forEach((r) => {
+  rows.forEach((r) => {
     if (r.phone && counts[r.phone] > 1) (groups[r.phone] ||= []).push(r);
     else singles.push(r);
   });
@@ -438,6 +469,39 @@ function renderCollections(rows) {
   singles.forEach((r) => { html += _rowHtml(r, false); });
   tbody.innerHTML = html;
   hydrateAddressSpans(tbody);
+}
+
+function renderPagination() {
+  const wrap = $("#collections-pagination");
+  if (!wrap) return;
+  if (!submissionsTotal) {
+    wrap.innerHTML = "";
+    return;
+  }
+  const start = (submissionsPage - 1) * submissionsPageSize + 1;
+  const end = Math.min(submissionsPage * submissionsPageSize, submissionsTotal);
+  wrap.innerHTML = `
+    <span class="page-info">Showing ${start}–${end} of ${submissionsTotal}</span>
+    <div class="page-controls">
+      <button class="btn-ghost" id="page-first" ${submissionsPage <= 1 ? "disabled" : ""}>«</button>
+      <button class="btn-ghost" id="page-prev" ${submissionsPage <= 1 ? "disabled" : ""}>‹ Prev</button>
+      <span class="page-num">Page ${submissionsPage} / ${submissionsPages}</span>
+      <button class="btn-ghost" id="page-next" ${submissionsPage >= submissionsPages ? "disabled" : ""}>Next ›</button>
+      <button class="btn-ghost" id="page-last" ${submissionsPage >= submissionsPages ? "disabled" : ""}>»</button>
+      <select id="page-size" class="search" title="Rows per page">
+        <option value="25" ${submissionsPageSize === 25 ? "selected" : ""}>25 / page</option>
+        <option value="50" ${submissionsPageSize === 50 ? "selected" : ""}>50 / page</option>
+        <option value="100" ${submissionsPageSize === 100 ? "selected" : ""}>100 / page</option>
+      </select>
+    </div>`;
+  $("#page-first").addEventListener("click", () => loadCollections(1));
+  $("#page-prev").addEventListener("click", () => loadCollections(submissionsPage - 1));
+  $("#page-next").addEventListener("click", () => loadCollections(submissionsPage + 1));
+  $("#page-last").addEventListener("click", () => loadCollections(submissionsPages));
+  $("#page-size").addEventListener("change", (e) => {
+    submissionsPageSize = parseInt(e.target.value, 10) || 25;
+    loadCollections(1);
+  });
 }
 
 function renderCollectors(rows) {
@@ -1298,9 +1362,10 @@ async function deleteSubmission(id) {
   )) return false;
   try {
     await api(`/api/collections/${id}`, { method: "DELETE" });
-    lastCollections = lastCollections.filter((c) => c.id !== id);
-    renderCollections(lastCollections);
-    renderMapCollections(lastCollections);
+    const nextPage = lastCollections.length <= 1 && submissionsPage > 1
+      ? submissionsPage - 1
+      : submissionsPage;
+    await Promise.all([loadCollections(nextPage), loadMapCollections(), loadStats()]);
     return true;
   } catch (e) { alert(e.message); return false; }
 }
@@ -1336,14 +1401,18 @@ $("#logout-btn").addEventListener("click", logout);
 $("#refresh-btn").addEventListener("click", refreshAll);
 $("#period").addEventListener("change", () => {
   loadStats();
-  loadCollections();
+  loadCollections(1);
+  loadMapCollections();
   if (!$("#view-groups").classList.contains("hidden")) loadGroups();
 });
 $("#export-btn").addEventListener("click", exportCsv);
-$("#search").addEventListener("input", () => renderCollections(lastCollections));
+$("#search").addEventListener("input", () => {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => loadCollections(1), 350);
+});
 $("#positive-filter").addEventListener("change", (e) => {
   currentPositiveFilter = e.target.value;
-  renderCollections(lastCollections);
+  loadCollections(1);
 });
 
 document.querySelectorAll(".tab").forEach((tab) => {
