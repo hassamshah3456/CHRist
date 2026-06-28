@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=12" />
+  <link rel="stylesheet" href="styles.css?v=14" />
 </head>
 <body>
 
@@ -86,7 +86,8 @@
       </div>
       <div class="card chart-compact">
         <h3>Screening positivity mix</h3>
-        <canvas id="chart-positivity-mix" height="120"></canvas>
+        <div id="positivity-mix-stats" class="mix-stats"></div>
+        <canvas id="chart-positivity-mix" height="140"></canvas>
       </div>
     </section>
 
@@ -134,7 +135,7 @@
             </colgroup>
             <thead>
               <tr>
-                <th>When</th><th>Collector</th><th>Child</th><th>Phone</th>
+                <th>When</th><th>Collector</th><th>Child age</th><th>Phone</th>
                 <th>Consent</th><th>Positives</th><th>Location</th><th></th>
               </tr>
             </thead>
@@ -322,6 +323,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=12"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

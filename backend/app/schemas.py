@@ -276,10 +276,10 @@ class AdminStats(BaseModel):
     today: int
     this_week: int
     this_month: int
-    triple_positive: int = 0  # submissions with 3+ Yes on top-level yes/no questions
+    triple_positive: int = 0  # submissions with 3+ Yes (includes quadruple)
     positivity_normal: int = 0   # < 3 Yes
-    positivity_triple: int = 0   # exactly 3 Yes
-    positivity_quadruple: int = 0  # 4+ Yes
+    positivity_triple: int = 0   # exactly 3 Yes (subset of triple_positive)
+    positivity_quadruple: int = 0  # 4+ Yes (included in triple_positive)
     consent_yes: int
     consent_no: int
     collectors_count: int

@@ -303,19 +303,14 @@ async function loadCollectors() {
 
 /* ---------- renderers ---------- */
 function renderKpis(s) {
-  const consentTotal = (s.consent_yes || 0) + (s.consent_no || 0);
-  const consentRate = consentTotal
-    ? Math.round((s.consent_yes / consentTotal) * 100) + "%"
-    : "—";
   const items = [
     { label: "Total", value: s.total, color: "#2ba84a" },
     { label: "Today", value: s.today, color: "#1e4db7" },
     { label: "This week", value: s.this_week, color: "#00b8a9" },
     { label: "This month", value: s.this_month, color: "#7a5af8" },
-    { label: "Triple positive", value: s.triple_positive ?? 0, color: "#b06a00" },
+    { label: "Triple positive (3+)", value: s.triple_positive ?? 0, color: "#b06a00" },
     { label: "Collectors", value: s.collectors_count, color: "#f0a500" },
     { label: "Avg age", value: s.avg_age != null ? s.avg_age + " yrs" : "—", color: "#e2574c" },
-    { label: "Consent rate", value: consentRate, color: "#2ba84a" },
   ];
   $("#kpi-grid").innerHTML = items.map((i) => `
     <div class="kpi">
@@ -370,23 +365,58 @@ function renderResponderBars(items) {
 
 function renderPositivityMix(s) {
   const normal = s.positivity_normal ?? 0;
-  const triple = s.positivity_triple ?? 0;
+  const tripleOnly = s.positivity_triple ?? 0;
   const quad = s.positivity_quadruple ?? 0;
+  const triplePlus = tripleOnly + quad;
+  const total = normal + triplePlus;
+  const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+
   makeOrReplace("chart-positivity-mix", {
-    type: "doughnut",
+    type: "bar",
     data: {
-      labels: ["Normal (<3 Yes)", "Triple (3 Yes)", "Quadruple (4+ Yes)"],
+      labels: [
+        `Normal (<3 Yes)`,
+        `Triple positive (3+)`,
+        `Quadruple (4+ Yes)`,
+      ],
       datasets: [{
-        data: [normal, triple, quad],
+        data: [normal, triplePlus, quad],
         backgroundColor: ["#2ba84a", "#b06a00", "#e2574c"],
+        borderRadius: 6,
+        maxBarThickness: 44,
       }],
     },
     options: {
-      plugins: { legend: { position: "bottom" } },
-      cutout: "58%",
-      maintainAspectRatio: true,
+      indexAxis: "y",
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const n = ctx.raw;
+              let line = `${n} submissions (${pct(n)}%)`;
+              if (ctx.dataIndex === 1) {
+                line += ` — ${tripleOnly} at exactly 3, ${quad} at 4+`;
+              }
+              return line;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { precision: 0 } },
+        y: { grid: { display: false } },
+      },
     },
   });
+
+  const stats = $("#positivity-mix-stats");
+  if (stats) {
+    stats.innerHTML = `
+      <span class="mix-stat normal"><b>${normal}</b> normal (${pct(normal)}%)</span>
+      <span class="mix-stat triple"><b>${triplePlus}</b> triple positive (3+, includes quadruple)</span>
+      <span class="mix-stat quad"><b>${quad}</b> quadruple only (4+)</span>`;
+  }
 }
 
 function renderAgeBars(items) {
@@ -432,7 +462,7 @@ function _rowHtml(r, grouped) {
   return `<tr class="clickable ${grouped ? "grouped" : ""}" data-id="${r.id}">
     <td>${fmtDate(r.collected_at)}</td>
     <td>${escapeHtml(r.collector_name || "—")}</td>
-    <td>${escapeHtml(r.child_name || "—")}<br><small>${fmtAge(r.child_age, r.child_age_months)}</small></td>
+    <td>${fmtAge(r.child_age, r.child_age_months) || "—"}</td>
     <td>${escapeHtml(r.phone || "—")}</td>
     <td><span class="badge ${r.verbal_consent ? "badge-yes" : "badge-no"}">${r.verbal_consent ? "Yes" : "No"}</span></td>
     <td>${positiveBadge(n)}</td>
