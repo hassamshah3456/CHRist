@@ -18,6 +18,7 @@ import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  AppConfig.assertProductionReady();
 
   // Single shared instances wired together by hand (no DI framework needed).
   final api = ApiClient();

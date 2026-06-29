@@ -5,6 +5,7 @@ import '../i18n/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
+import 'legal/legal_screen.dart';
 import 'auth/welcome_screen.dart';
 import 'language_picker_screen.dart';
 
@@ -91,6 +92,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             const SizedBox(height: 22),
+            _sectionTitle(context, 'Legal'),
+            const SizedBox(height: 10),
+            SectionCard(
+              child: Column(
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.privacy_tip_outlined,
+                        color: AppTheme.primary),
+                    title: const Text('Privacy Policy'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const LegalScreen(document: LegalDocument.privacy),
+                      ),
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.description_outlined,
+                        color: AppTheme.primary),
+                    title: const Text('Terms of Use'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const LegalScreen(document: LegalDocument.terms),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
             OutlinedButton.icon(
               onPressed: () => showLanguageSheet(context),
               icon: const Icon(Icons.translate_rounded),
@@ -106,6 +143,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               icon: const Icon(Icons.logout_rounded),
               label: Text(context.t('sign_out')),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => _confirmDeleteAccount(context),
+              child: const Text(
+                'Delete account',
+                style: TextStyle(color: AppTheme.danger),
+              ),
             ),
           ],
           ),
@@ -174,6 +219,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
       MaterialPageRoute(builder: (_) => const WelcomeScreen()),
       (_) => false,
     );
+  }
+
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your collector account, submissions, '
+          'and payment history on the server. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(context.t('cancel'))),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Delete',
+                  style: TextStyle(color: AppTheme.danger))),
+        ],
+      ),
+    );
+    if (ok != true || !context.mounted) return;
+    try {
+      await context.read<AuthProvider>().deleteAccount();
+      if (!context.mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+        (_) => false,
+      );
+    } catch (_) {
+      if (context.mounted) {
+        showSnack(context, 'Could not delete account. Check your connection.',
+            error: true);
+      }
+    }
   }
 }
 

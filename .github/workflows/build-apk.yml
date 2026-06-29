@@ -1,14 +1,13 @@
-name: Build Android APK
+name: Build Android App Bundle
 
-# Builds a release APK in the cloud. No local Flutter/Android toolchain needed.
-# Trigger manually from the Actions tab, or on every push to main.
+# Builds a release AAB for Google Play. Trigger manually or on push to main.
 on:
   workflow_dispatch:
   push:
     branches: [main]
 
 jobs:
-  build-apk:
+  build-aab:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,39 +23,91 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          # Pinned for reproducible builds and to match the package versions
-          # in pubspec.yaml. Bump deliberately when you upgrade dependencies.
           flutter-version: "3.24.5"
 
-      # Generate the android/ platform scaffolding (does not touch lib/ or
-      # pubspec.yaml, which already exist in the repo).
       - name: Generate platform files
         run: flutter create --org com.usmlewise --project-name usmlewise_christ --platforms=android .
 
-      # Overlay our Android app label, launcher icon, and permissions.
       - name: Apply Android overrides
         run: |
           cp android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           cp -R android_overrides/res/* android/app/src/main/res/
 
+      - name: Configure release signing (optional)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          if [ -n "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
+            cat > android/key.properties <<EOF
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=../upload-keystore.jks
+          EOF
+            python3 <<'PY'
+          from pathlib import Path
+          p = Path("android/app/build.gradle.kts")
+          text = p.read_text()
+          if "signingConfigs.create(\"release\")" not in text:
+              insert = '''
+          val keystorePropertiesFile = rootProject.file("key.properties")
+          val keystoreProperties = java.util.Properties()
+          if (keystorePropertiesFile.exists()) {
+              keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+          }
+          '''
+              text = text.replace("android {", "android {\n" + insert, 1)
+              text = text.replace(
+                  "    buildTypes {",
+                  '''    signingConfigs {
+          create("release") {
+              keyAlias = keystoreProperties["keyAlias"] as String
+              keyPassword = keystoreProperties["keyPassword"] as String
+              storeFile = file(keystoreProperties["storeFile"] as String)
+              storePassword = keystoreProperties["storePassword"] as String
+          }
+      }
+
+      buildTypes {''',
+              )
+              text = text.replace(
+                  "signingConfig = signingConfigs.getByName(\"debug\")",
+                  "signingConfig = signingConfigs.getByName(\"release\")",
+              )
+              p.write_text(text)
+          PY
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 not set; AAB will use debug signing (not for Play upload)."
+          fi
+
       - name: Get dependencies
         run: flutter pub get
 
-      # API_BASE_URL must be set as a repository Variable (Settings > Secrets
-      # and variables > Actions > Variables). Falls back to the default in
-      # config.dart if unset (only useful for emulator testing).
-      - name: Build release APK
+      - name: Build release App Bundle
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          PRIVACY_POLICY_URL: ${{ vars.PRIVACY_POLICY_URL }}
+          TERMS_URL: ${{ vars.TERMS_URL }}
         run: |
-          if [ -n "${{ vars.API_BASE_URL }}" ]; then
-            flutter build apk --release --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
+          ARGS=""
+          if [ -n "$API_BASE_URL" ]; then
+            ARGS="$ARGS --dart-define=API_BASE_URL=$API_BASE_URL"
           else
-            echo "::warning::API_BASE_URL repo variable not set; using config.dart default."
-            flutter build apk --release
+            echo "::warning::API_BASE_URL repo variable not set."
           fi
+          PRIVACY="${PRIVACY_POLICY_URL:-https://api.usmlewise.com/privacy}"
+          TERMS="${TERMS_URL:-https://api.usmlewise.com/terms}"
+          flutter build appbundle --release $ARGS \
+            --dart-define=PRIVACY_POLICY_URL="$PRIVACY" \
+            --dart-define=TERMS_URL="$TERMS"
 
-      - name: Upload APK artifact
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: usmlewise-christ-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: crist-tool-aab
+          path: build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error

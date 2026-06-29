@@ -35,6 +35,7 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
   final _ageMonths = TextEditingController();
   String? _carrying; // Father / Mother / Others
   final _carryingOther = TextEditingController();
+  bool? _verbalConsent;
 
   // Caregiver phone (child's) — required for triple-positive cases.
   final _caregiverPhone = TextEditingController();
@@ -176,6 +177,9 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
   }
 
   String? _validate() {
+    if (_verbalConsent == null) {
+      return 'Please record whether verbal consent was obtained.';
+    }
     final age = int.tryParse(_age.text.trim());
     if (_age.text.trim().isEmpty || age == null || age < 0 || age > 18) {
       return context.t('invalid_age');
@@ -335,7 +339,7 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
     try {
       await context.read<CollectionProvider>().addCollection(
             collectorName: auth.user?.name ?? 'Collector',
-            verbalConsent: true,
+            verbalConsent: _verbalConsent!,
             phone: _caregiverPhone.text.trim().isEmpty
                 ? null
                 : _caregiverPhone.text.trim(),
@@ -376,6 +380,18 @@ class _CollectFormScreenState extends State<CollectFormScreen> {
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                       children: [
+                        _section('Verbal consent'),
+                        const Text(
+                          'Did the caregiver give verbal consent for this screening?',
+                          style: TextStyle(
+                              color: AppTheme.textMuted, fontSize: 13),
+                        ),
+                        const SizedBox(height: 10),
+                        YesNoButtons(
+                          value: _verbalConsent,
+                          onChanged: (v) => setState(() => _verbalConsent = v),
+                        ),
+                        const SizedBox(height: 22),
                         _section(context.t('child_age')),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,

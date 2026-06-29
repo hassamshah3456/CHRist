@@ -127,4 +127,10 @@ class AuthProvider extends ChangeNotifier {
     presence.disable();
     notifyListeners();
   }
+
+  /// Deletes the collector account on the server and clears local data.
+  Future<void> deleteAccount() async {
+    await api.delete('/auth/account');
+    await logout();
+  }
 }

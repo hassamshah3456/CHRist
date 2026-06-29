@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../i18n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/legal_links.dart';
 import 'login_screen.dart';
 import 'register_screen.dart';
 
@@ -61,6 +62,8 @@ class WelcomeScreen extends StatelessWidget {
                   ),
                   child: Text(context.t('sign_in')),
                 ),
+                const SizedBox(height: 20),
+                const LegalLinksRow(light: true),
                 const SizedBox(height: 8),
               ],
             ),

@@ -28,6 +28,13 @@ class ApiClient {
 
   Uri _uri(String path) => Uri.parse('${AppConfig.apiBaseUrl}$path');
 
+  Future<void> delete(String path) async {
+    final res = await http
+        .delete(_uri(path), headers: _jsonHeaders)
+        .timeout(const Duration(seconds: 20));
+    _decode(res);
+  }
+
   Future<dynamic> get(String path) async {
     final res = await http
         .get(_uri(path), headers: _jsonHeaders)

@@ -1,4 +1,5 @@
 """Registration, login, and collector presence endpoints."""
+import os
 import re
 from datetime import datetime
 
@@ -14,6 +15,7 @@ from ..auth import (
     hash_password,
     verify_password,
 )
+from ..config import settings
 from ..database import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -121,3 +123,50 @@ def heartbeat(
         last_seen=user.last_seen,
         app_seconds=user.app_seconds or 0,
     )
+
+
+def _delete_media_files(collections) -> None:
+    """Remove uploaded photos from disk when a collector account is deleted."""
+    names = set()
+    for c in collections:
+        if c.medical_record_photo:
+            names.add(c.medical_record_photo)
+        for a in c.answers:
+            if a.photo_filename:
+                names.add(a.photo_filename)
+    for name in names:
+        path = os.path.join(settings.MEDIA_DIR, name)
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+        except OSError:
+            pass
+
+
+@router.delete("/account", status_code=204)
+def delete_account(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Delete the signed-in collector account (Google Play account-deletion policy).
+
+    Removes the collector profile, submissions, payouts, and uploaded photos.
+    Admin accounts cannot self-delete via this endpoint.
+    """
+    if user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin accounts cannot be deleted from the app.",
+        )
+
+    collections = db.query(models.Collection).filter(
+        models.Collection.user_id == user.id
+    ).all()
+    _delete_media_files(collections)
+
+    for c in collections:
+        db.delete(c)
+    db.query(models.Payout).filter(models.Payout.user_id == user.id).delete()
+    user.groups.clear()
+    db.delete(user)
+    db.commit()

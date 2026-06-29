@@ -7,6 +7,7 @@ import '../../services/location_service.dart';
 import '../../i18n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common.dart';
+import '../../widgets/legal_links.dart';
 import '../dashboard_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -27,6 +28,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _submitting = false;
   bool _differentUpiName = false;
   bool _locationReady = false;
+  bool _acceptedLegal = false;
 
   @override
   void initState() {
@@ -52,6 +54,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
+    if (!_acceptedLegal) {
+      showSnack(context, 'Please accept the Privacy Policy and Terms of Use.',
+          error: true);
+      return;
+    }
     FocusScope.of(context).unfocus();
     setState(() => _submitting = true);
     try {
@@ -175,6 +182,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         : null,
                   ),
                 ],
+                const SizedBox(height: 18),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _acceptedLegal,
+                  onChanged: (v) => setState(() => _acceptedLegal = v ?? false),
+                  title: const LegalLinksRow(),
+                ),
                 const SizedBox(height: 26),
                 ElevatedButton(
                   onPressed: _submitting ? null : _submit,

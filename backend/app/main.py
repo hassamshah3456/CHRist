@@ -3,7 +3,7 @@ import os
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import inspect, text
 
@@ -182,6 +182,30 @@ app.include_router(questions_router.public_router)  # /questionnaire (collector)
 @app.get("/health", tags=["health"])
 def health():
     return {"status": "ok", "service": settings.PROJECT_NAME}
+
+
+_LEGAL_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "legal")
+)
+
+
+def _legal_page(name: str):
+    path = os.path.join(_LEGAL_DIR, name)
+    if not os.path.isfile(path):
+        return {"detail": "Not found"}
+    return FileResponse(path, media_type="text/html")
+
+
+@app.get("/privacy", include_in_schema=False)
+def privacy_policy():
+    """Public privacy policy (linked from Google Play listing and the app)."""
+    return _legal_page("privacy.html")
+
+
+@app.get("/terms", include_in_schema=False)
+def terms_of_use():
+    """Public terms of use."""
+    return _legal_page("terms.html")
 
 
 @app.get("/me", response_model=schemas.UserOut, tags=["auth"])
