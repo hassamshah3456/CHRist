@@ -1,7 +1,7 @@
 """UsmleWise CRIST API entrypoint."""
 import os
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -184,16 +184,20 @@ def health():
     return {"status": "ok", "service": settings.PROJECT_NAME}
 
 
-_LEGAL_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "legal")
-)
+_LEGAL_DIRS = [
+    # Bundled with the app package (Docker / production).
+    os.path.join(os.path.dirname(__file__), "legal"),
+    # Repo-root copy when running from a full checkout.
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "legal")),
+]
 
 
 def _legal_page(name: str):
-    path = os.path.join(_LEGAL_DIR, name)
-    if not os.path.isfile(path):
-        return {"detail": "Not found"}
-    return FileResponse(path, media_type="text/html")
+    for base in _LEGAL_DIRS:
+        path = os.path.join(base, name)
+        if os.path.isfile(path):
+            return FileResponse(path, media_type="text/html")
+    raise HTTPException(status_code=404, detail="Page not found")
 
 
 @app.get("/privacy", include_in_schema=False)
