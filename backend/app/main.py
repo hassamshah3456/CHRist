@@ -208,6 +208,12 @@ def terms_of_use():
     return _legal_page("terms.html")
 
 
+@app.get("/delete-account", include_in_schema=False)
+def delete_account_page():
+    """Public account deletion instructions (Google Play data deletion URL)."""
+    return _legal_page("delete-account.html")
+
+
 @app.get("/me", response_model=schemas.UserOut, tags=["auth"])
 def me(user: models.User = Depends(get_current_user)):
     return user
