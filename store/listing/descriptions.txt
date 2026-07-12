@@ -1,0 +1,56 @@
+CRIST Tool — Google Play Store listing copy
+============================================
+
+SHORT DESCRIPTION (max 80 characters)
+-------------------------------------
+Field screening app for authorised CRIST research collectors. Offline sync.
+
+Character count: 74
+
+
+FULL DESCRIPTION (max 4000 characters)
+--------------------------------------
+CRIST Tool is the official mobile app for authorised field collectors in the UsmleWise CRIST developmental screening study.
+
+Built for reliable data collection in the field, CRIST Tool helps trained collectors register participants, complete screening questionnaires, and sync results securely — even when connectivity is limited.
+
+KEY FEATURES
+
+• Secure collector sign-in with phone and password
+• Geo-tagged submissions for verified field activity
+• Works offline — records queue locally and sync automatically when back online
+• Dynamic screening questionnaires managed by study administrators
+• Verbal caregiver consent recorded on every submission
+• Optional medical-record photo capture
+• Collector payment tracking with transparent due amounts
+• English, Hindi, and Kannada language support
+• Profile management and account deletion
+
+WHO IS THIS FOR?
+
+CRIST Tool is intended for authorised research collectors participating in the CRIST study. It is not a public consumer app and does not provide medical diagnosis or treatment.
+
+REQUIREMENTS
+
+• Authorised collector account
+• Location enabled while using the app (submissions are geo-tagged)
+• Verbal consent from a caregiver before collecting participant data
+
+PRIVACY & DATA
+
+We take data protection seriously. See our Privacy Policy and account deletion instructions:
+
+Privacy: https://api.usmlewise.com/privacy
+Delete account: https://api.usmlewise.com/delete-account
+
+Contact: admin@usmlewise.com
+
+SCREENSHOTS
+-----------
+See PNG files in this folder:
+  play-store-screenshot-1-welcome.png
+  play-store-screenshot-2-dashboard.png
+  play-store-screenshot-3-collection.png
+  play-store-screenshot-4-payments.png
+  play-store-screenshot-5-profile.png
+  play-store-feature-graphic.png  (1024×500 feature graphic)

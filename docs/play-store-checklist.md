@@ -6,6 +6,7 @@ Use this when submitting **CRIST Tool** (`com.usmlewise.usmlewise_christ`) to Go
 
 - [ ] **Privacy policy URL** live and public: `https://api.usmlewise.com/privacy`
 - [ ] **Terms URL** live: `https://api.usmlewise.com/terms`
+- [ ] **Account deletion URL** live (Play Console “Delete account URL”): `https://api.usmlewise.com/delete-account`
 - [ ] **Release AAB** built with HTTPS API:
   ```bash
   flutter build appbundle --release \
