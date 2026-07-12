@@ -456,3 +456,93 @@ tr.grouped td:first-child { border-left: 3px solid var(--primary); }
 }
 .fu-fields > label { display: block; margin-top: 10px; font-weight: 600; font-size: 13px; }
 .fu-fields > label:first-child { margin-top: 0; }
+
+/* ---------- OMR data (scanned sheets) ---------- */
+.omr-upload-row {
+  display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap;
+}
+.omr-upload-row label {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 13px; font-weight: 600;
+}
+.omr-upload-row select, .omr-upload-row input[type="file"] {
+  padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: 10px; font-size: 14px; background: #fff;
+}
+.omr-pill {
+  display: inline-block; padding: 2px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.pill-busy { background: #fff3d6; color: #9a6b00; }
+.pill-review { background: #e3ecff; color: var(--primary-dark); }
+.pill-ok { background: #e0f5e6; color: #17703a; }
+.pill-bad { background: #fde5e2; color: var(--danger); }
+.btn-danger.sm { padding: 4px 9px; font-size: 12px; border-radius: 8px; }
+
+.omr-pages {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+}
+.omr-page-item {
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; cursor: pointer; background: #fff;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.omr-page-item:hover { border-color: var(--primary); background: #f7f9fe; }
+.omr-warn { color: #9a6b00; }
+.omr-err { color: var(--danger); overflow: hidden; text-overflow: ellipsis; }
+
+.omr-review {
+  display: grid; grid-template-columns: minmax(320px, 46%) 1fr;
+  gap: 18px; align-items: start;
+}
+.omr-scan {
+  position: sticky; top: 12px; max-height: 84vh; overflow: auto;
+  border: 1px solid var(--border); border-radius: 12px; background: #fafbfe;
+}
+.omr-scan img { width: 100%; display: block; }
+.omr-data h4 { margin: 14px 0 8px; }
+.omr-data h4:first-child { margin-top: 0; }
+.omr-header-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.omr-header-grid label {
+  display: flex; flex-direction: column; gap: 5px;
+  font-size: 12px; font-weight: 600; color: var(--muted);
+}
+.omr-header-grid input {
+  padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 9px; font-size: 14px;
+}
+#omr-rows-table th, #omr-rows-table td { padding: 6px 6px; }
+#omr-rows-table input, #omr-rows-table select {
+  padding: 6px 7px; border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px; background: #fff; width: 100%;
+}
+#omr-rows-table input[type="number"] { width: 58px; }
+#omr-rows-table td:nth-child(2) input { min-width: 110px; }
+#omr-rows-table td:nth-child(9) input { min-width: 105px; }
+tr.omr-uncertain td { background: #fff8e6; }
+tr.omr-uncertain:hover td { background: #fdf1d2; }
+
+/* ---------- AI settings ---------- */
+.ai-form { display: flex; flex-direction: column; gap: 14px; max-width: 720px; }
+.ai-form > label {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: 13px; font-weight: 600;
+}
+.ai-form input, .ai-form select {
+  padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: 10px; font-size: 14px; background: #fff;
+}
+.ai-form input:focus, .ai-form select:focus { border-color: var(--primary); outline: none; }
+.ai-model-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ai-model-row select { min-width: 260px; }
+.ai-model-row input { min-width: 220px; }
+.ai-actions { display: flex; gap: 12px; align-items: center; }
+
+@media (max-width: 980px) {
+  .omr-review { grid-template-columns: 1fr; }
+  .omr-scan { position: static; max-height: 60vh; }
+}

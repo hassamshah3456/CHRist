@@ -801,13 +801,18 @@ function switchView(view) {
   $("#view-groups").classList.toggle("hidden", view !== "groups");
   $("#view-questionnaire").classList.toggle("hidden", view !== "questionnaire");
   $("#view-payments").classList.toggle("hidden", view !== "payments");
+  $("#view-omr").classList.toggle("hidden", view !== "omr");
   $("#view-instructions").classList.toggle("hidden", view !== "instructions");
+  $("#view-settings").classList.toggle("hidden", view !== "settings");
+  if (view !== "omr") stopOmrPolling();
   if (view === "groups") loadGroups();
   else {
     stopGroupLiveRefresh();
     if (view === "questionnaire") loadQuestions();
     else if (view === "payments") loadPayments();
+    else if (view === "omr") loadOmrBatches();
     else if (view === "instructions") loadInstructions();
+    else if (view === "settings") loadAiConfig();
     else setTimeout(() => map && map.invalidateSize(), 100);
   }
 }
@@ -1725,6 +1730,415 @@ document.querySelectorAll(".tab").forEach((tab) => {
     // The positivity filter only applies to submissions.
     $("#positive-filter").classList.toggle("hidden", which !== "collections");
   });
+});
+
+/* ---------- AI settings ---------- */
+function _aiModelValue() {
+  const custom = $("#ai-model-custom").value.trim();
+  return custom || $("#ai-model").value || "";
+}
+
+function _aiSetModelOptions(models, selected) {
+  const sel = $("#ai-model");
+  sel.innerHTML = "";
+  const list = [...new Set([...(models || []), ...(selected ? [selected] : [])])];
+  if (!list.length) {
+    sel.innerHTML = `<option value="">— no models loaded —</option>`;
+    return;
+  }
+  list.forEach((m) => {
+    const opt = document.createElement("option");
+    opt.value = m; opt.textContent = m;
+    if (m === selected) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function _aiStatus(msg, isError = false) {
+  const el = $("#ai-status");
+  el.textContent = msg;
+  el.style.color = isError ? "#e05555" : "";
+  if (!isError) setTimeout(() => { if (el.textContent === msg) el.textContent = ""; }, 4000);
+}
+
+async function loadAiConfig() {
+  try {
+    const cfg = await api("/api/ai/config");
+    $("#ai-base-url").value = cfg.base_url || "";
+    $("#ai-api-key").value = "";
+    $("#ai-api-key").placeholder = cfg.has_api_key
+      ? "•••••••• (saved — leave blank to keep)" : "sk-…";
+    _aiSetModelOptions([], cfg.model || "");
+  } catch (e) { alert(e.message); }
+}
+
+async function saveAiConfig(silent = false) {
+  const body = {
+    base_url: $("#ai-base-url").value.trim(),
+    api_key: $("#ai-api-key").value.trim() || null,
+    model: _aiModelValue(),
+  };
+  const cfg = await api("/api/ai/config", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  $("#ai-api-key").value = "";
+  $("#ai-api-key").placeholder = cfg.has_api_key
+    ? "•••••••• (saved — leave blank to keep)" : "sk-…";
+  if (!silent) _aiStatus("Saved ✓");
+  return cfg;
+}
+
+async function fetchAiModels() {
+  const btn = $("#ai-fetch-models");
+  btn.disabled = true;
+  try {
+    await saveAiConfig(true); // use what's typed, not stale stored values
+    const models = await api("/api/ai/models");
+    _aiSetModelOptions(models, _aiModelValue());
+    _aiStatus(`Loaded ${models.length} models ✓`);
+  } catch (e) {
+    _aiStatus(e.message, true);
+  } finally { btn.disabled = false; }
+}
+
+async function testAiConnection() {
+  const btn = $("#ai-test-btn");
+  btn.disabled = true;
+  _aiStatus("Testing…");
+  try {
+    await saveAiConfig(true);
+    const res = await api("/api/ai/test", { method: "POST" });
+    _aiStatus(`Connected ✓ (${res.model} replied: ${res.reply.slice(0, 40)})`);
+  } catch (e) {
+    _aiStatus(e.message, true);
+  } finally { btn.disabled = false; }
+}
+
+$("#ai-save-btn").addEventListener("click", () =>
+  saveAiConfig().catch((e) => _aiStatus(e.message, true)));
+$("#ai-fetch-models").addEventListener("click", fetchAiModels);
+$("#ai-test-btn").addEventListener("click", testAiConnection);
+$("#ai-model").addEventListener("change", () => { $("#ai-model-custom").value = ""; });
+
+/* ---------- OMR (scanned sheets) ---------- */
+let omrBatches = [];
+let omrSelectedBatchId = null;
+let omrSelectedPage = null;
+let omrPollTimer = null;
+const OMR_ANSWER_OPTIONS = ["", "yes", "no"];
+
+function stopOmrPolling() {
+  if (omrPollTimer) { clearInterval(omrPollTimer); omrPollTimer = null; }
+}
+
+function _omrEnsurePolling() {
+  const busy = omrBatches.some((b) => b.pages_pending > 0);
+  if (busy && !omrPollTimer) {
+    omrPollTimer = setInterval(async () => {
+      try {
+        await loadOmrBatches(false);
+        if (omrSelectedBatchId) await openOmrBatch(omrSelectedBatchId, false);
+        // Refresh an open review if its page just finished processing.
+        if (omrSelectedPage && ["pending", "processing"].includes(omrSelectedPage.status)) {
+          await openOmrReview(omrSelectedPage.id, false);
+        }
+      } catch (e) { /* transient — keep polling */ }
+    }, 4000);
+  } else if (!busy && omrPollTimer) {
+    stopOmrPolling();
+  }
+}
+
+function _omrBatchStatus(b) {
+  const bits = [];
+  if (b.pages_pending) bits.push(`<span class="omr-pill pill-busy">${b.pages_pending} processing…</span>`);
+  if (b.pages_extracted) bits.push(`<span class="omr-pill pill-review">${b.pages_extracted} to review</span>`);
+  if (b.pages_approved) bits.push(`<span class="omr-pill pill-ok">${b.pages_approved} approved</span>`);
+  if (b.pages_failed) bits.push(`<span class="omr-pill pill-bad">${b.pages_failed} failed</span>`);
+  return bits.join(" ") || "—";
+}
+
+async function loadOmrBatches(manageSpinner = true) {
+  try {
+    omrBatches = await api("/api/omr/batches");
+    renderOmrBatches();
+    _omrEnsurePolling();
+  } catch (e) { if (manageSpinner) alert(e.message); }
+}
+
+function renderOmrBatches() {
+  const tbody = $("#omr-batches-table tbody");
+  if (!omrBatches.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">No uploads yet. Upload a scanned PDF above to begin.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = omrBatches.map((b) => `
+    <tr>
+      <td>${escapeHtml(b.filename)}</td>
+      <td>${fmtDate(b.created_at)}</td>
+      <td>${b.language === "auto" ? "Auto" : escapeHtml(b.language)}</td>
+      <td>${b.pages_total}</td>
+      <td>${_omrBatchStatus(b)}</td>
+      <td>
+        <button class="cancel" data-omr-open="${b.id}">Open</button>
+        <button class="cancel" data-omr-export="${b.id}">CSV</button>
+        <button class="btn-danger sm" data-omr-del="${b.id}">Delete</button>
+      </td>
+    </tr>`).join("");
+}
+
+$("#omr-batches-table").addEventListener("click", (e) => {
+  const open = e.target.closest("[data-omr-open]");
+  if (open) { openOmrBatch(open.dataset.omrOpen); return; }
+  const exp = e.target.closest("[data-omr-export]");
+  if (exp) { exportOmrCsv(exp.dataset.omrExport); return; }
+  const del = e.target.closest("[data-omr-del]");
+  if (del) deleteOmrBatch(del.dataset.omrDel);
+});
+
+async function uploadOmr() {
+  const input = $("#omr-file");
+  if (!input.files.length) { alert("Choose a PDF or sheet photos first."); return; }
+  const btn = $("#omr-upload-btn");
+  btn.disabled = true;
+  $("#omr-upload-status").textContent = "Uploading…";
+  const fd = new FormData();
+  [...input.files].forEach((f) => fd.append("files", f));
+  fd.append("language", $("#omr-language").value);
+  try {
+    const res = await fetch(API + "/api/omr/upload", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + getToken() },
+      body: fd,
+    });
+    if (!res.ok) {
+      let msg = "Upload failed (" + res.status + ")";
+      try { const j = await res.json(); if (j.detail) msg = j.detail; } catch (err) {}
+      throw new Error(msg);
+    }
+    const batch = await res.json();
+    input.value = "";
+    $("#omr-upload-status").textContent =
+      `Uploaded ✓ — extracting ${batch.pages_total} page(s)…`;
+    setTimeout(() => { $("#omr-upload-status").textContent = ""; }, 5000);
+    await loadOmrBatches();
+    await openOmrBatch(batch.id);
+  } catch (e) {
+    $("#omr-upload-status").textContent = "";
+    alert(e.message);
+  } finally { btn.disabled = false; }
+}
+
+const OMR_PAGE_STATUS = {
+  pending: ["Queued", "pill-busy"],
+  processing: ["Reading…", "pill-busy"],
+  extracted: ["Needs review", "pill-review"],
+  approved: ["Approved", "pill-ok"],
+  failed: ["Failed", "pill-bad"],
+};
+
+async function openOmrBatch(id, scroll = true) {
+  try {
+    const b = await api("/api/omr/batches/" + id);
+    omrSelectedBatchId = id;
+    $("#omr-batch-card").classList.remove("hidden");
+    $("#omr-batch-title").textContent = b.filename;
+    $("#omr-batch-summary").textContent =
+      `${b.pages_total} page(s) · ${b.rows_count} extracted row(s) · uploaded ${fmtDate(b.created_at)}`;
+    $("#omr-pages-list").innerHTML = b.pages.map((p) => {
+      const [label, cls] = OMR_PAGE_STATUS[p.status] || [p.status, ""];
+      const uncertain = p.uncertain_count
+        ? `<small class="omr-warn">⚠ ${p.uncertain_count} uncertain</small>` : "";
+      const err = p.status === "failed" && p.error
+        ? `<small class="omr-err" title="${escapeHtml(p.error)}">${escapeHtml(p.error.slice(0, 80))}</small>` : "";
+      return `<div class="omr-page-item" data-omr-page="${p.id}">
+        <div><b>Page ${p.page_number}</b> <span class="omr-pill ${cls}">${label}</span></div>
+        <small>${p.rows_count} row(s)</small> ${uncertain} ${err}
+      </div>`;
+    }).join("");
+    if (scroll) $("#omr-batch-card").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) { alert(e.message); }
+}
+
+$("#omr-pages-list").addEventListener("click", (e) => {
+  const item = e.target.closest("[data-omr-page]");
+  if (item) openOmrReview(item.dataset.omrPage);
+});
+$("#omr-batch-close").addEventListener("click", () => {
+  omrSelectedBatchId = null;
+  $("#omr-batch-card").classList.add("hidden");
+});
+
+async function deleteOmrBatch(id) {
+  if (!confirm("Delete this batch, its page scans and all extracted rows? This cannot be undone.")) return;
+  try {
+    await api("/api/omr/batches/" + id, { method: "DELETE" });
+    if (omrSelectedBatchId === id) {
+      omrSelectedBatchId = null;
+      $("#omr-batch-card").classList.add("hidden");
+    }
+    if (omrSelectedPage && omrSelectedPage.batch_id === id) closeOmrReview();
+    await loadOmrBatches();
+  } catch (e) { alert(e.message); }
+}
+
+/* ----- page review ----- */
+function _omrAnswerSelect(name, value) {
+  return `<select data-omr-q="${name}">` + OMR_ANSWER_OPTIONS.map((o) =>
+    `<option value="${o}" ${o === (value || "") ? "selected" : ""}>${o || "—"}</option>`
+  ).join("") + `</select>`;
+}
+
+function _omrRowHtml(r) {
+  return `<tr class="${r.uncertain ? "omr-uncertain" : ""}" title="${r.uncertain ? "The AI was not confident about this row — double-check it." : ""}">
+    <td><input type="number" data-omr-f="serial" value="${r.serial ?? ""}" min="0" /></td>
+    <td><input type="text" data-omr-f="age_text" value="${escapeHtml(r.age_text || "")}" /></td>
+    <td><input type="number" data-omr-f="age_years" value="${r.age_years ?? ""}" min="0" /></td>
+    <td><input type="number" data-omr-f="age_months" value="${r.age_months ?? ""}" min="0" max="11" /></td>
+    <td>${_omrAnswerSelect("q1", r.q1)}</td>
+    <td>${_omrAnswerSelect("q2", r.q2)}</td>
+    <td>${_omrAnswerSelect("q3", r.q3)}</td>
+    <td>${_omrAnswerSelect("q4", r.q4)}</td>
+    <td><input type="text" data-omr-f="mobile" value="${escapeHtml(r.mobile || "")}" /></td>
+    <td><button class="btn-danger sm" data-omr-delrow>✕</button></td>
+  </tr>`;
+}
+
+async function openOmrReview(pageId, scroll = true) {
+  try {
+    const p = await api("/api/omr/pages/" + pageId);
+    omrSelectedPage = p;
+    $("#omr-review-card").classList.remove("hidden");
+    const [label] = OMR_PAGE_STATUS[p.status] || [p.status];
+    $("#omr-review-title").textContent = `Page ${p.page_number} — ${label}`;
+    $("#omr-review-status").textContent = p.status === "failed"
+      ? "Extraction failed: " + (p.error || "unknown error")
+      : (["pending", "processing"].includes(p.status) ? "AI is reading this page…" : "");
+    $("#omr-h-place").value = p.place || "";
+    $("#omr-h-block").value = p.block || "";
+    $("#omr-h-district").value = p.district || "";
+    $("#omr-h-date").value = p.sheet_date || "";
+    $("#omr-f-name").value = p.filler_name || "";
+    $("#omr-f-designation").value = p.filler_designation || "";
+    $("#omr-f-mobile").value = p.filler_mobile || "";
+    $("#omr-rows-table tbody").innerHTML = p.rows.map(_omrRowHtml).join("");
+    $("#omr-approve-btn").textContent = p.status === "approved" ? "Approved ✓" : "✓ Approve";
+    // Page image needs the auth header, so it can't be a plain <img src>.
+    const res = await fetch(API + `/api/omr/pages/${pageId}/image`, {
+      headers: { Authorization: "Bearer " + getToken() },
+    });
+    if (res.ok) $("#omr-review-img").src = URL.createObjectURL(await res.blob());
+    if (scroll) $("#omr-review-card").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) { alert(e.message); }
+}
+
+function closeOmrReview() {
+  omrSelectedPage = null;
+  $("#omr-review-card").classList.add("hidden");
+  $("#omr-review-img").src = "";
+}
+
+function _collectOmrPage() {
+  const rows = [...$("#omr-rows-table tbody").querySelectorAll("tr")].map((tr) => {
+    const f = (name) => tr.querySelector(`[data-omr-f="${name}"]`).value.trim();
+    const q = (name) => tr.querySelector(`[data-omr-q="${name}"]`).value || null;
+    const num = (v) => (v === "" ? null : Number(v));
+    return {
+      serial: num(f("serial")) || 0,
+      age_text: f("age_text") || null,
+      age_years: num(f("age_years")),
+      age_months: num(f("age_months")),
+      q1: q("q1"), q2: q("q2"), q3: q("q3"), q4: q("q4"),
+      mobile: f("mobile") || null,
+      uncertain: false, // reviewed by a human now
+    };
+  });
+  return {
+    place: $("#omr-h-place").value.trim() || null,
+    block: $("#omr-h-block").value.trim() || null,
+    district: $("#omr-h-district").value.trim() || null,
+    sheet_date: $("#omr-h-date").value.trim() || null,
+    filler_name: $("#omr-f-name").value.trim() || null,
+    filler_designation: $("#omr-f-designation").value.trim() || null,
+    filler_mobile: $("#omr-f-mobile").value.trim() || null,
+    rows,
+  };
+}
+
+async function saveOmrPage(silent = false) {
+  if (!omrSelectedPage) return null;
+  const p = await api("/api/omr/pages/" + omrSelectedPage.id, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(_collectOmrPage()),
+  });
+  omrSelectedPage = p;
+  if (!silent) {
+    $("#omr-review-status").textContent = "Saved ✓";
+    setTimeout(() => {
+      if ($("#omr-review-status").textContent === "Saved ✓")
+        $("#omr-review-status").textContent = "";
+    }, 2500);
+  }
+  return p;
+}
+
+async function approveOmrPage() {
+  if (!omrSelectedPage) return;
+  try {
+    await saveOmrPage(true);
+    const p = await api(`/api/omr/pages/${omrSelectedPage.id}/approve`, { method: "POST" });
+    omrSelectedPage = p;
+    $("#omr-approve-btn").textContent = "Approved ✓";
+    $("#omr-review-title").textContent = `Page ${p.page_number} — Approved`;
+    $("#omr-review-status").textContent = "Approved ✓ — this page's rows now count in exports.";
+    await loadOmrBatches(false);
+    if (omrSelectedBatchId) await openOmrBatch(omrSelectedBatchId, false);
+  } catch (e) { alert(e.message); }
+}
+
+async function rerunOmrPage() {
+  if (!omrSelectedPage) return;
+  if (!confirm("Re-run AI extraction on this page? Current rows (including your edits) will be replaced.")) return;
+  try {
+    await api(`/api/omr/pages/${omrSelectedPage.id}/rerun`, { method: "POST" });
+    await openOmrReview(omrSelectedPage.id, false);
+    await loadOmrBatches(false);
+  } catch (e) { alert(e.message); }
+}
+
+async function exportOmrCsv(batchId = null) {
+  const qs = batchId ? `?batch_id=${encodeURIComponent(batchId)}&approved_only=true` : "?approved_only=true";
+  const res = await fetch(API + "/api/omr/export.csv" + qs, {
+    headers: { Authorization: "Bearer " + getToken() },
+  });
+  if (!res.ok) { alert("Export failed. Approve at least one page first."); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "omr_data.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+$("#omr-upload-btn").addEventListener("click", uploadOmr);
+$("#omr-export-btn").addEventListener("click", () => exportOmrCsv());
+$("#omr-review-close").addEventListener("click", closeOmrReview);
+$("#omr-save-btn").addEventListener("click", () =>
+  saveOmrPage().catch((e) => alert(e.message)));
+$("#omr-approve-btn").addEventListener("click", approveOmrPage);
+$("#omr-rerun-btn").addEventListener("click", rerunOmrPage);
+$("#omr-add-row").addEventListener("click", () => {
+  const tbody = $("#omr-rows-table tbody");
+  const nextSerial = tbody.querySelectorAll("tr").length + 1;
+  tbody.insertAdjacentHTML("beforeend", _omrRowHtml({ serial: nextSerial }));
+});
+$("#omr-rows-table").addEventListener("click", (e) => {
+  const del = e.target.closest("[data-omr-delrow]");
+  if (del) del.closest("tr").remove();
 });
 
 /* ---------- boot ---------- */

@@ -10,7 +10,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css?v=24" />
+  <link rel="stylesheet" href="styles.css?v=25" />
 </head>
 <body>
 
@@ -45,7 +45,9 @@
         <button class="nav-btn" data-view="groups">Groups</button>
         <button class="nav-btn" data-view="questionnaire">Questionnaire</button>
         <button class="nav-btn" data-view="payments">Payments</button>
+        <button class="nav-btn" data-view="omr">OMR Data</button>
         <button class="nav-btn" data-view="instructions">Instructions</button>
+        <button class="nav-btn" data-view="settings">Settings</button>
       </nav>
     </div>
     <div class="topbar-right">
@@ -338,6 +340,151 @@
       </section>
     </div>
 
+    <!-- ===== OMR DATA (scanned paper sheets) ===== -->
+    <div id="view-omr" class="hidden">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h3 style="margin-bottom:4px">Upload scanned sheets</h3>
+            <small>Upload a PDF of CRIST screening sheets (or photos of individual sheets).
+              Each page is read by the AI model configured in Settings, then reviewed here before it counts.</small>
+          </div>
+        </div>
+        <div class="omr-upload-row">
+          <input type="file" id="omr-file" multiple
+                 accept="application/pdf,image/jpeg,image/png,image/webp" />
+          <label>Sheet language
+            <select id="omr-language">
+              <option value="auto" selected>Auto-detect</option>
+              <option value="hi">हिन्दी (Hindi)</option>
+              <option value="kn">ಕನ್ನಡ (Kannada)</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <button class="btn-primary" id="omr-upload-btn">⬆ Upload &amp; extract</button>
+          <span id="omr-upload-status" class="rates-saved"></span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>Batches</h3>
+          <button class="btn-primary" id="omr-export-btn">⬇ Export approved CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table id="omr-batches-table">
+            <colgroup>
+              <col style="width:26%" /><col style="width:14%" /><col style="width:10%" />
+              <col style="width:8%" /><col style="width:22%" /><col style="width:20%" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>File</th><th>Uploaded</th><th>Language</th>
+                <th>Pages</th><th>Status</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card hidden" id="omr-batch-card">
+        <div class="card-head">
+          <div>
+            <h3 id="omr-batch-title" style="margin-bottom:4px"></h3>
+            <small id="omr-batch-summary"></small>
+          </div>
+          <button class="btn-ghost" id="omr-batch-close">✕ Close</button>
+        </div>
+        <div id="omr-pages-list" class="omr-pages"></div>
+      </section>
+
+      <section class="card hidden" id="omr-review-card">
+        <div class="card-head">
+          <div>
+            <h3 id="omr-review-title" style="margin-bottom:4px"></h3>
+            <small>Compare the scan with the extracted data, fix anything wrong, then approve.
+              Highlighted rows are ones the AI wasn't sure about.</small>
+          </div>
+          <div class="group-actions">
+            <button class="btn-ghost" id="omr-rerun-btn">↺ Re-extract</button>
+            <button class="btn-ghost" id="omr-save-btn">Save</button>
+            <button class="btn-primary" id="omr-approve-btn">✓ Approve</button>
+            <button class="btn-ghost" id="omr-review-close">✕ Close</button>
+          </div>
+        </div>
+        <div id="omr-review-status" class="rates-saved"></div>
+        <div class="omr-review">
+          <div class="omr-scan">
+            <img id="omr-review-img" alt="Scanned sheet" />
+          </div>
+          <div class="omr-data">
+            <h4>Location details</h4>
+            <div class="omr-header-grid">
+              <label>Place <input id="omr-h-place" type="text" /></label>
+              <label>Block <input id="omr-h-block" type="text" /></label>
+              <label>District <input id="omr-h-district" type="text" /></label>
+              <label>Date <input id="omr-h-date" type="text" /></label>
+            </div>
+            <h4>Rows</h4>
+            <div class="table-wrap">
+              <table id="omr-rows-table">
+                <thead>
+                  <tr>
+                    <th>#</th><th>Age (as written)</th><th>Yrs</th><th>Mo</th>
+                    <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th>
+                    <th>Mobile</th><th></th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <button class="btn-ghost" id="omr-add-row">＋ Add row</button>
+            <h4>Filled by</h4>
+            <div class="omr-header-grid">
+              <label>Name <input id="omr-f-name" type="text" /></label>
+              <label>Designation <input id="omr-f-designation" type="text" /></label>
+              <label>Mobile <input id="omr-f-mobile" type="text" /></label>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ===== SETTINGS ===== -->
+    <div id="view-settings" class="hidden">
+      <section class="card">
+        <div class="card-head">
+          <div>
+            <h3 style="margin-bottom:4px">AI Integration</h3>
+            <small>OpenAI-compatible endpoint used to read scanned OMR sheets.
+              Works with OpenRouter (recommended for Claude models), OpenAI, or any compatible server.
+              For Anthropic direct, use https://api.anthropic.com.</small>
+          </div>
+        </div>
+        <div class="ai-form">
+          <label>Base URL
+            <input type="text" id="ai-base-url" placeholder="https://openrouter.ai/api/v1" />
+          </label>
+          <label>API key
+            <input type="password" id="ai-api-key" placeholder="Leave blank to keep the saved key" autocomplete="new-password" />
+          </label>
+          <label>Model
+            <div class="ai-model-row">
+              <select id="ai-model"></select>
+              <input type="text" id="ai-model-custom" placeholder="…or type a model id" />
+              <button class="btn-ghost" id="ai-fetch-models">Fetch models</button>
+            </div>
+          </label>
+          <div class="ai-actions">
+            <button class="btn-primary" id="ai-save-btn">Save</button>
+            <button class="btn-ghost" id="ai-test-btn">Test connection</button>
+            <span id="ai-status" class="rates-saved"></span>
+          </div>
+        </div>
+      </section>
+    </div>
+
     <!-- ===== INSTRUCTIONS ===== -->
     <div id="view-instructions" class="hidden">
       <section class="card">
@@ -376,6 +523,6 @@
   <div class="modal" id="modal"></div>
 </div>
 
-<script src="app.js?v=22"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>

@@ -15,6 +15,7 @@ from .routers import (
     admin_router,
     auth_router,
     collections_router,
+    omr_router,
     questions_router,
     stats_router,
 )
@@ -175,6 +176,7 @@ app.include_router(auth_router.router)
 app.include_router(collections_router.router)
 app.include_router(stats_router.router)
 app.include_router(admin_router.router)  # /api/* admin endpoints
+app.include_router(omr_router.router)  # /api/omr/* + /api/ai/* (scanned sheets)
 app.include_router(questions_router.router)  # /api/questions admin CRUD
 app.include_router(questions_router.public_router)  # /questionnaire (collector)
 
@@ -215,6 +217,22 @@ def terms_of_use():
 @app.get("/delete-account", include_in_schema=False)
 def delete_account_page():
     """Public account deletion instructions (Google Play data deletion URL)."""
+    return _legal_page("delete-account.html")
+
+
+# Common alternate paths (e.g. Play Console, old bookmarks).
+@app.get("/legal/privacy", include_in_schema=False)
+def privacy_policy_alias():
+    return _legal_page("privacy.html")
+
+
+@app.get("/legal/terms", include_in_schema=False)
+def terms_of_use_alias():
+    return _legal_page("terms.html")
+
+
+@app.get("/legal/delete-account", include_in_schema=False)
+def delete_account_page_alias():
     return _legal_page("delete-account.html")
 
 

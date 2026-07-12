@@ -445,4 +445,90 @@ class MyPayment(BaseModel):
     last_payout: Optional[PayoutOut] = None
 
 
+# ---------- OMR (scanned paper sheets) ----------
+class AiConfigIn(BaseModel):
+    base_url: str = ""
+    # Empty means "keep the currently stored key" (never echoed back).
+    api_key: Optional[str] = None
+    model: str = ""
+
+
+class AiConfigOut(BaseModel):
+    base_url: str = ""
+    model: str = ""
+    has_api_key: bool = False
+
+
+class OmrRowIO(BaseModel):
+    """One sheet row — the same shape is used for reading and editing."""
+    serial: int = 0
+    age_text: Optional[str] = None
+    age_years: Optional[int] = None
+    age_months: Optional[int] = None
+    q1: Optional[str] = None
+    q2: Optional[str] = None
+    q3: Optional[str] = None
+    q4: Optional[str] = None
+    mobile: Optional[str] = None
+    uncertain: bool = False
+
+
+class OmrPageSummary(BaseModel):
+    id: str
+    page_number: int
+    status: str
+    error: Optional[str] = None
+    rows_count: int = 0
+    uncertain_count: int = 0
+
+
+class OmrPageDetail(BaseModel):
+    id: str
+    batch_id: str
+    page_number: int
+    status: str
+    error: Optional[str] = None
+    model_used: Optional[str] = None
+    language_detected: Optional[str] = None
+    place: Optional[str] = None
+    block: Optional[str] = None
+    district: Optional[str] = None
+    sheet_date: Optional[str] = None
+    filler_name: Optional[str] = None
+    filler_designation: Optional[str] = None
+    filler_mobile: Optional[str] = None
+    extracted_at: Optional[datetime] = None
+    approved_at: Optional[datetime] = None
+    rows: List[OmrRowIO] = []
+
+
+class OmrPageUpdate(BaseModel):
+    """Admin edits from the review screen; rows replace the existing set."""
+    place: Optional[str] = None
+    block: Optional[str] = None
+    district: Optional[str] = None
+    sheet_date: Optional[str] = None
+    filler_name: Optional[str] = None
+    filler_designation: Optional[str] = None
+    filler_mobile: Optional[str] = None
+    rows: List[OmrRowIO] = []
+
+
+class OmrBatchOut(BaseModel):
+    id: str
+    filename: str
+    language: str
+    created_at: datetime
+    pages_total: int = 0
+    pages_pending: int = 0
+    pages_extracted: int = 0
+    pages_approved: int = 0
+    pages_failed: int = 0
+    rows_count: int = 0
+
+
+class OmrBatchDetail(OmrBatchOut):
+    pages: List[OmrPageSummary] = []
+
+
 CollectorGroupDetail.model_rebuild()

@@ -12,3 +12,7 @@ python-dotenv==1.0.1
 psycopg2-binary==2.9.9
 PyMySQL==1.1.1
 cryptography==42.0.8
+# OMR sheet extraction: PDF page rendering + image handling + AI HTTP calls.
+pypdfium2==4.30.0
+pillow==10.4.0
+httpx==0.27.0
