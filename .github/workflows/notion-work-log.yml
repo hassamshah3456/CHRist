@@ -1,0 +1,65 @@
+name: Log work to Notion
+
+on:
+  push:
+
+jobs:
+  notion-log:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add entry to Notion Work Log
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          COMMITS_JSON: ${{ toJson(github.event.commits) }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          PUSHER: ${{ github.actor }}
+          COMPARE_URL: ${{ github.event.compare }}
+        run: |
+          python3 - <<'EOF'
+          import datetime, json, os, sys, urllib.request
+
+          commits = json.loads(os.environ.get("COMMITS_JSON") or "[]")
+          if not commits:
+              print("No commits in this push event (branch/tag create or delete) - nothing to log.")
+              sys.exit(0)
+
+          messages = [c["message"].split("\n")[0] for c in commits]
+          summary = messages[-1]
+          if len(messages) > 1:
+              summary += f" (+{len(messages) - 1} more commit{'s' if len(messages) > 2 else ''})"
+          commits_text = "\n".join(f"- {m}" for m in messages)[:1900]
+
+          repo_name = os.environ["REPO"].split("/")[-1]
+          now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+          payload = {
+              "parent": {"database_id": os.environ["NOTION_DATABASE_ID"]},
+              "properties": {
+                  "Work Done": {"title": [{"text": {"content": summary[:200]}}]},
+                  "Repo": {"select": {"name": repo_name.replace(",", " ")[:100]}},
+                  "Branch": {"rich_text": [{"text": {"content": os.environ["BRANCH"]}}]},
+                  "Date": {"date": {"start": now}},
+                  "Commits": {"rich_text": [{"text": {"content": commits_text}}]},
+                  "Pushed By": {"rich_text": [{"text": {"content": os.environ["PUSHER"]}}]},
+                  "Compare": {"url": os.environ.get("COMPARE_URL") or None},
+              },
+          }
+
+          req = urllib.request.Request(
+              "https://api.notion.com/v1/pages",
+              data=json.dumps(payload).encode(),
+              headers={
+                  "Authorization": "Bearer " + os.environ["NOTION_TOKEN"],
+                  "Notion-Version": "2022-06-28",
+                  "Content-Type": "application/json",
+              },
+          )
+          try:
+              with urllib.request.urlopen(req) as resp:
+                  print("Logged to Notion:", json.load(resp).get("url"))
+          except urllib.error.HTTPError as e:
+              print("Notion API error:", e.code, e.read().decode())
+              sys.exit(1)
+          EOF
