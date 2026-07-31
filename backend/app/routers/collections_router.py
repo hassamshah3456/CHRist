@@ -5,10 +5,13 @@ import uuid as uuidlib
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter, Depends, File, HTTPException, Query, Request, UploadFile,
+)
 from sqlalchemy.orm import Session
 
-from .. import models, payments, schemas
+from .. import audit, crypto, models, payments, schemas
+from ..audit import Action
 from ..auth import get_current_user
 from ..config import settings
 from ..database import get_db
@@ -46,6 +49,7 @@ def _range_end(period: str) -> Optional[datetime]:
 @router.post("/sync", response_model=schemas.SyncResponse)
 def sync(
     payload: schemas.SyncRequest,
+    request: Request,
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
@@ -125,27 +129,50 @@ def sync(
             )
             continue
 
+    if synced_ids:
+        audit.record_user(
+            user, Action.SYNC_COLLECTIONS, request=request,
+            resource_type="collection", subject_count=len(synced_ids),
+            detail=f"{len(synced_ids)} of {len(payload.collections)} "
+                   "queued records accepted",
+        )
     return schemas.SyncResponse(synced_ids=synced_ids)
 
 
 @router.post("/photo")
 async def upload_photo(
+    request: Request,
     file: UploadFile = File(...),
     user: models.User = Depends(get_current_user),
 ):
     """Upload a questionnaire photo (e.g. OPD card). Returns its stored name,
-    which the device then references in the answer it syncs."""
+    which the device then references in the answer it syncs.
+
+    These images are medical records. They are written through
+    `crypto.write_encrypted`, so what lands on the media volume is AES-256-GCM
+    ciphertext — a stolen disk or an errant backup yields nothing readable
+    without the key, which lives only in the server environment.
+    """
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in _ALLOWED_IMAGE_EXT:
         ext = ".jpg"
-    content = await file.read()
+
+    # Read with a hard ceiling rather than trusting the client: an unbounded
+    # read() would let one request exhaust memory before the size check.
+    content = await file.read(_MAX_PHOTO_BYTES + 1)
     if len(content) > _MAX_PHOTO_BYTES:
         raise HTTPException(413, "Image too large (max 8 MB).")
 
     os.makedirs(settings.MEDIA_DIR, exist_ok=True)
     name = f"{uuidlib.uuid4().hex}{ext}"
-    with open(os.path.join(settings.MEDIA_DIR, name), "wb") as f:
-        f.write(content)
+    crypto.write_encrypted(os.path.join(settings.MEDIA_DIR, name), content)
+
+    audit.record_user(
+        user, Action.UPLOAD_PHOTO, request=request,
+        resource_type="photo", resource_id=name,
+        detail="medical-record photo stored encrypted at rest"
+               if crypto.encryption_enabled() else "stored WITHOUT encryption",
+    )
     return {"filename": name}
 
 

@@ -41,13 +41,24 @@
   </ul>
 
   <h2>Data sharing</h2>
-  <p>Data is transmitted to our secure research server. We do not sell personal data. Platform geocoding services may be used on-device to convert coordinates to addresses. Authorised administrators can access submissions for study operations.</p>
+  <p>Data is transmitted to our secure research server. We do not sell personal data. Platform geocoding services may be used on-device to convert coordinates to addresses. Authorised administrators can access submissions for study operations, and every such access is logged.</p>
+  <p>Where the study digitises paper screening sheets, the scanned images are sent to a third-party artificial-intelligence service to transcribe the handwriting. Those images can contain names and contact numbers written on the sheet. We record every such transfer. Ask your study coordinator which provider is in use and what agreement governs it.</p>
+  <p>When data is shared for analysis, we use a de-identified export that removes names, phone numbers and addresses and reduces location to an approximate area.</p>
 
   <h2>Data retention &amp; deletion</h2>
   <p>Research records may be retained for the duration of the study. Collectors may delete their account from the Profile screen in the app, which removes their account credentials and associated collector profile data. You can also follow the instructions at <a href="/delete-account">Account deletion</a>. Contact the study coordinator for questions about research records entered about participants.</p>
 
   <h2>Security</h2>
-  <p>Production apps communicate with the server over HTTPS. Passwords are hashed. Medical photos are accessible only to authorised administrators.</p>
+  <p>We apply the following safeguards:</p>
+  <ul>
+    <li><strong>In transit:</strong> all communication with the server uses HTTPS. Release builds refuse to run against a non-HTTPS server, and unencrypted connections are blocked at the operating-system level.</li>
+    <li><strong>At rest:</strong> photographs of medical records and scanned screening sheets are encrypted with AES-256 before being stored. On mobile devices the offline record queue is held in an encrypted (SQLCipher) database.</li>
+    <li><strong>On your device:</strong> your sign-in token is kept in the Android Keystore or iOS Keychain. The app locks itself after a period of inactivity and asks you to sign in again. Screenshots and screen recording are blocked while the app is open.</li>
+    <li><strong>Accounts:</strong> passwords are stored only as salted hashes, must meet a minimum complexity, and accounts lock temporarily after repeated failed sign-in attempts. Administrator accounts require a second factor from an authenticator app.</li>
+    <li><strong>Access:</strong> a collector can only ever see their own submissions. Medical photographs are accessible only to authorised administrators.</li>
+    <li><strong>Accountability:</strong> we keep an audit record of every access to participant data — who viewed, exported or deleted which record, and when. These records are kept for six years and never contain the participant details themselves.</li>
+  </ul>
+  <p>No system is perfectly secure. If you believe data has been exposed, contact <a href="mailto:admin@usmlewise.com">admin@usmlewise.com</a> so we can investigate under our incident response procedure.</p>
 
   <h2>Children</h2>
   <p>The app is intended for adult collectors only. Collectors enter information about children only after obtaining verbal consent from a caregiver, as instructed in the study protocol.</p>

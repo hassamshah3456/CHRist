@@ -7,6 +7,8 @@ passlib[bcrypt]==1.7.4
 # raises "password cannot be longer than 72 bytes"). 4.0.1 works cleanly.
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
+# TOTP second factor for administrator accounts (HIPAA §164.312(d)).
+pyotp==2.9.0
 python-multipart==0.0.9
 python-dotenv==1.0.1
 psycopg2-binary==2.9.9

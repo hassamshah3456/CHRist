@@ -174,7 +174,75 @@ flutter build apk --release --dart-define=API_BASE_URL=https://your-server.com
    (Father / Mother / Others → free-text). Saving stores locally and syncs.
 
 ## 5. Offline & sync behaviour
-- Every collection is written to on-device SQLite immediately.
+- Every collection is written to on-device SQLite immediately. On mobile that
+  database is **encrypted with SQLCipher**, keyed from the platform keystore.
 - `connectivity_plus` watches the network; when internet returns the queued
   records are pushed automatically (also retried on app open and screen loads).
 - Sync is **idempotent** (client-generated UUIDs), so retries never duplicate.
+
+---
+
+## 6. Security & HIPAA safeguards
+
+This app handles identifiable health information about children. The technical
+safeguards below are implemented and covered by tests
+(`backend/tests/test_hipaa_safeguards.py` — 18 tests — plus `flutter test`).
+The organisational work that code cannot do is tracked in [`compliance/`](compliance/).
+
+### Before deploying to production
+
+Set `ENVIRONMENT=production`. The server then **refuses to start** unless it is
+configured safely — no placeholder signing key, no unencrypted media volume, no
+wildcard CORS, no SQLite. Generate the two required secrets:
+
+```bash
+python manage.py generate-secret        # -> SECRET_KEY
+python manage.py generate-media-key     # -> MEDIA_ENCRYPTION_KEY
+```
+
+> **Back up `MEDIA_ENCRYPTION_KEY` somewhere other than the media volume.**
+> Every stored photograph is encrypted with it. Lose it and the images are
+> permanently unreadable. That property is also the secure-disposal mechanism:
+> destroying the key crypto-shreds the images.
+
+Upgrading a deployment that already has photos on disk? Encrypt them once with
+`python manage.py encrypt-media` (idempotent, safe to re-run).
+
+### What is protected, and how
+
+| Area | Control |
+|------|---------|
+| In transit | HTTPS enforced at build time, in the Android manifest, and by store policy. HSTS in production. |
+| At rest (server) | Medical-record photos and scanned OMR sheets encrypted with AES-256-GCM. |
+| At rest (device) | Offline queue in a SQLCipher database, keyed from the platform keystore. |
+| Device credentials | Auth token in Android Keystore / iOS Keychain, not SharedPreferences. |
+| Automatic logoff | App locks after `IDLE_LOCK_MINUTES` idle, including time spent backgrounded. |
+| Screen capture | `FLAG_SECURE` blocks screenshots and the recent-apps preview. |
+| Authentication | bcrypt, complexity policy, lockout after `MAX_LOGIN_ATTEMPTS`, TOTP MFA for admins. |
+| Session control | Token versioning — logout and password change revoke every session instantly. |
+| Access control | Collectors scoped to their own records at the query level; admin routes separated. |
+| Audit | Every PHI read, export, photo view, deletion and sign-in attempt kept for six years. |
+| Minimum necessary | `GET /api/export.csv?deidentified=true` drops identifiers, coarsens GPS to ~11 km. |
+
+### Operating it
+
+```bash
+python manage.py audit-report --days 7      # periodic activity review
+python manage.py revoke-sessions --email …  # offboarding
+python manage.py reset-mfa --email …        # lost authenticator
+python manage.py purge-audit                # six-year retention (refuses shorter)
+```
+
+Administrators review the same data through `GET /api/audit` and
+`GET /api/audit/summary`.
+
+### Not yet done — these are decisions, not code
+
+- **No Business Associate Agreement** exists with any hosting provider, or with
+  the AI vision provider that reads scanned sheets. Until one does, the OMR AI
+  feature discloses handwritten PHI to a third party. See
+  [`compliance/baa-checklist.md`](compliance/baa-checklist.md).
+- Hosting must move to a HIPAA-eligible plan; the Render free tier is not one.
+- No certificate pinning in the mobile client.
+- The **web build cannot encrypt its local database** (no SQLCipher in the
+  browser). Field collection must use the mobile app.

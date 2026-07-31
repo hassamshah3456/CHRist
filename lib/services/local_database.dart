@@ -1,12 +1,15 @@
-import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
-import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 import '../models/collection.dart';
+import 'db_opener.dart';
 
 /// On-device SQLite store. Holds the offline sync queue and a local cache of
 /// collections so the app works fully without connectivity.
+///
+/// On mobile the file is encrypted with SQLCipher (AES-256) using a key held
+/// in the platform keystore — see db_opener_io.dart. The queue contains
+/// participant PHI whenever a collector is offline, so the database file must
+/// be unreadable if the handset is lost or stolen.
 class LocalDatabase {
   static final LocalDatabase instance = LocalDatabase._();
   LocalDatabase._();
@@ -84,24 +87,11 @@ class LocalDatabase {
   }
 
   Future<Database> _open() async {
-    const version = 7;
-    if (kIsWeb) {
-      databaseFactory = databaseFactoryFfiWeb;
-      return databaseFactory.openDatabase(
-        'usmlewise_christ.db',
-        options: OpenDatabaseOptions(
-          version: version,
-          onCreate: _onCreate,
-          onUpgrade: _onUpgrade,
-        ),
-      );
-    }
-
-    final dir = await getDatabasesPath();
-    final path = p.join(dir, 'usmlewise_christ.db');
-    return openDatabase(
-      path,
-      version: version,
+    // Encrypted via SQLCipher on mobile, plain WASM SQLite on web — the
+    // platform split lives in db_opener_io.dart / db_opener_stub.dart so this
+    // class stays unaware of it.
+    return openAppDatabase(
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );

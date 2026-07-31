@@ -44,6 +44,71 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+    # Minutes of inactivity after which the client must re-authenticate. This
+    # is how the automatic-logoff safeguard (§164.312(a)(2)(iii)) is met on a
+    # device that legitimately holds a long-lived token for offline work.
+    idle_lock_minutes: int = 15
+
+
+class MfaChallengeResponse(BaseModel):
+    """Returned by /auth/login when an admin's password is correct but a
+    second factor is still outstanding. Carries no access token."""
+    mfa_required: bool = True
+    # Short-lived ticket proving the password step passed; spend it at
+    # /auth/login/mfa together with the 6-digit code.
+    mfa_ticket: str
+    # True when the account has no authenticator enrolled yet and must run
+    # /auth/mfa/enroll before it can finish signing in.
+    enrollment_required: bool = False
+
+
+class MfaVerifyRequest(BaseModel):
+    mfa_ticket: str
+    code: str = Field(..., min_length=4, max_length=32)
+
+
+class MfaEnrollResponse(BaseModel):
+    secret: str
+    otpauth_url: str
+    # Shown exactly once; the server keeps only bcrypt hashes.
+    recovery_codes: List[str]
+
+
+class MfaActivateRequest(BaseModel):
+    code: str = Field(..., min_length=6, max_length=8)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class SimpleMessage(BaseModel):
+    detail: str
+
+
+# ---------- Audit ----------
+class AuditEntryOut(BaseModel):
+    id: str
+    actor_id: Optional[str] = None
+    actor_name: Optional[str] = None
+    actor_role: Optional[str] = None
+    action: str
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    subject_count: int = 1
+    detail: Optional[str] = None
+    ip_address: Optional[str] = None
+    success: bool = True
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AuditPage(BaseModel):
+    total: int
+    items: List[AuditEntryOut]
 
 
 # ---------- Presence ----------

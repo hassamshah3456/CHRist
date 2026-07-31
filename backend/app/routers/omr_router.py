@@ -14,12 +14,13 @@ from typing import List, Optional
 
 from fastapi import (
     APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query,
-    UploadFile,
+    Request, Response, UploadFile,
 )
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from .. import ai_client, models, schemas
+from .. import ai_client, audit, crypto, models, schemas
+from ..audit import Action
 from ..auth import get_current_admin
 from ..config import settings
 from ..database import SessionLocal, get_db
@@ -42,7 +43,12 @@ def _norm_answer(v: Optional[str]) -> Optional[str]:
 
 
 def _save_jpeg(image, filename: str) -> None:
-    """Downscale (if needed) and save a PIL image as JPEG in MEDIA_DIR."""
+    """Downscale (if needed) and save a PIL image as JPEG in MEDIA_DIR.
+
+    Scanned screening sheets carry handwritten names, mobile numbers and
+    village names, so they are encrypted at rest exactly like the medical-record
+    photographs: the JPEG is encoded in memory and written as ciphertext.
+    """
     if image.mode not in ("RGB", "L"):
         image = image.convert("RGB")
     w, h = image.size
@@ -50,7 +56,11 @@ def _save_jpeg(image, filename: str) -> None:
     if edge > _MAX_IMAGE_EDGE:
         ratio = _MAX_IMAGE_EDGE / edge
         image = image.resize((int(w * ratio), int(h * ratio)))
-    image.save(os.path.join(settings.MEDIA_DIR, filename), "JPEG", quality=88)
+    buf = io.BytesIO()
+    image.save(buf, "JPEG", quality=88)
+    crypto.write_encrypted(
+        os.path.join(settings.MEDIA_DIR, filename), buf.getvalue()
+    )
 
 
 def _pdf_to_page_images(pdf_bytes: bytes, batch_id: str) -> List[str]:
@@ -162,9 +172,25 @@ def _process_pages(page_ids: List[str]) -> None:
             db.commit()
             try:
                 path = os.path.join(settings.MEDIA_DIR, page.image_filename)
-                with open(path, "rb") as f:
-                    image_bytes = f.read()
+                image_bytes = crypto.read_decrypted(path)
                 language = page.batch.language if page.batch else "auto"
+
+                # Sending a sheet to the vision model is a DISCLOSURE of PHI to
+                # an external processor. It is recorded before the call so the
+                # trail exists even if the request fails or the process dies —
+                # and so the set of sheets that ever left the perimeter can be
+                # reconstructed if the provider suffers a breach.
+                audit.record(
+                    actor_id=page.batch.uploaded_by if page.batch else None,
+                    actor_name="system (background extraction)",
+                    actor_role="admin",
+                    action=Action.AI_DISCLOSURE,
+                    resource_type="omr_page", resource_id=page.id,
+                    subject_count=1,
+                    detail=f"sheet image sent to {cfg.get('base_url') or 'unset'} "
+                           f"model={cfg.get('model') or 'unset'}",
+                )
+
                 data = ai_client.extract_page(cfg, image_bytes, language)
                 _apply_extraction(page, data, cfg.get("model") or "")
             except Exception as e:  # noqa: BLE001 — any failure marks the page
@@ -446,14 +472,40 @@ def page_detail(
 @router.get("/omr/pages/{page_id}/image")
 def page_image(
     page_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
+    """Serve a scanned sheet image, decrypted in memory and audited.
+
+    A sheet holds up to 22 handwritten rows, so one view can expose many
+    individuals at once — the audit row records that rather than counting it
+    as a single access.
+    """
     page = _page_or_404(db, page_id)
     path = os.path.join(settings.MEDIA_DIR, page.image_filename)
     if not os.path.isfile(path):
         raise HTTPException(404, "Page image not found.")
-    return FileResponse(path, media_type="image/jpeg")
+
+    try:
+        content = crypto.read_decrypted(path)
+    except crypto.MediaCryptoError as exc:
+        audit.record_user(
+            admin, Action.VIEW_OMR, request=request, success=False,
+            resource_type="omr_page", resource_id=page.id, detail=str(exc)[:512],
+        )
+        raise HTTPException(500, "This sheet image could not be decrypted.")
+
+    audit.record_user(
+        admin, Action.VIEW_OMR, request=request,
+        resource_type="omr_page", resource_id=page.id,
+        subject_count=max(1, len(page.rows or [])),
+    )
+    return Response(
+        content=content,
+        media_type="image/jpeg",
+        headers={"Cache-Control": "no-store, private"},
+    )
 
 
 @router.put("/omr/pages/{page_id}", response_model=schemas.OmrPageDetail)

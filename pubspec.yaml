@@ -17,12 +17,20 @@ dependencies:
   # Networking
   http: ^1.2.1
 
-  # Local offline storage (sync queue + cached user)
+  # Local offline storage (sync queue + cached user).
+  # On mobile the queue holds participant PHI, so it is opened through
+  # sqflite_sqlcipher with a per-install random key kept in the platform
+  # keystore. Plain sqflite remains for the web build, which has no SQLCipher.
   sqflite: ^2.3.3
+  sqflite_sqlcipher: ^3.1.0
   sqflite_common_ffi_web: ^0.4.5+4
   path: ^1.9.0
   path_provider: ^2.1.3
   shared_preferences: ^2.2.3
+
+  # Auth token and database key storage, backed by the Android Keystore and
+  # the iOS Keychain rather than world-readable app preferences.
+  flutter_secure_storage: ^9.2.2
 
   # Location
   geolocator: ^12.0.0
@@ -48,6 +56,8 @@ dependencies:
 
 dev_dependencies:
   flutter_lints: ^4.0.0
+  flutter_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true

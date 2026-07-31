@@ -7,6 +7,7 @@ import 'screens/language_picker_screen.dart';
 import 'providers/auth_provider.dart';
 import 'providers/collection_provider.dart';
 import 'services/api_client.dart';
+import 'services/idle_lock.dart';
 import 'services/local_database.dart';
 import 'services/location_service.dart';
 import 'services/presence_service.dart';
@@ -29,6 +30,9 @@ void main() {
   final store = SessionStore();
   final questionnaire = QuestionnaireService(api);
   final locale = LocaleProvider()..load();
+  // Automatic logoff (HIPAA §164.312(a)(2)(iii)). AuthProvider attaches its
+  // own handler in its constructor.
+  final idleLock = IdleLock();
 
   runApp(
     MultiProvider(
@@ -40,6 +44,7 @@ void main() {
             location: location,
             sync: sync,
             presence: presence,
+            idleLock: idleLock,
           )..bootstrap(),
         ),
         ChangeNotifierProvider(
@@ -50,7 +55,12 @@ void main() {
         Provider<QuestionnaireService>.value(value: questionnaire),
         ChangeNotifierProvider<LocaleProvider>.value(value: locale),
       ],
-      child: UsmleWiseApp(presence: presence, locale: locale),
+      // Wraps the whole app so every tap counts as activity and resets the
+      // inactivity deadline.
+      child: IdleLockScope(
+        lock: idleLock,
+        child: UsmleWiseApp(presence: presence, locale: locale),
+      ),
     ),
   );
 }

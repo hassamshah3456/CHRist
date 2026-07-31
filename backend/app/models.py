@@ -47,6 +47,24 @@ class User(Base):
     # Role: admins can view all collectors' data via the web dashboard.
     is_admin = Column(Boolean, nullable=False, default=False)
 
+    # ---- Account security (HIPAA §164.308(a)(5), §164.312(a)/(d)) --------
+    # Bumped on password change, sign-out-everywhere, or admin revocation. A
+    # JWT carries the version it was minted with, so raising this instantly
+    # invalidates every outstanding token for the account.
+    token_version = Column(Integer, nullable=False, default=0)
+    password_changed_at = Column(DateTime, nullable=True)
+
+    # Brute-force protection: consecutive failures, and the time until which
+    # sign-in is refused. Both reset on a successful authentication.
+    failed_login_count = Column(Integer, nullable=False, default=0)
+    locked_until = Column(DateTime, nullable=True)
+
+    # TOTP multi-factor, required for admin accounts in production. The secret
+    # is base32; recovery codes are stored as bcrypt hashes, newline-joined.
+    mfa_secret = Column(String(64), nullable=True)
+    mfa_enabled = Column(Boolean, nullable=False, default=False)
+    mfa_recovery_hashes = Column(Text, nullable=True)
+
     # Payment details
     upi_address = Column(String(255), nullable=False)  # e.g. name@bank
     upi_name = Column(String(255), nullable=True)      # account holder if different
@@ -297,6 +315,49 @@ class OmrRow(Base):
     uncertain = Column(Boolean, nullable=False, default=False)
 
     page = relationship("OmrPage", back_populates="rows")
+
+
+class AuditLog(Base):
+    """Append-only record of access to protected health information.
+
+    Required by HIPAA §164.312(b). Written by app/audit.py, which is the only
+    supported way to create rows; there is deliberately no update or delete
+    path outside the six-year retention job.
+
+    This table records *that* PHI was accessed and by whom — never the PHI
+    itself. Storing participant details here would create a second copy of the
+    data the log exists to protect.
+    """
+    __tablename__ = "audit_log"
+
+    id = Column(String(36), primary_key=True, default=_uuid)
+
+    # Who. Denormalised name/role so the trail stays readable after the
+    # account is deleted — an audit log that goes blank when someone leaves is
+    # not an audit log. No foreign key, for the same reason.
+    actor_id = Column(String(36), nullable=True, index=True)
+    actor_name = Column(String(255), nullable=True)
+    actor_role = Column(String(16), nullable=True)  # admin | collector
+
+    # What. See audit.Action for the controlled vocabulary.
+    action = Column(String(64), nullable=False, index=True)
+
+    # Which record. resource_type is e.g. collection | photo | collector | omr.
+    resource_type = Column(String(32), nullable=True)
+    resource_id = Column(String(64), nullable=True, index=True)
+
+    # How many individuals were exposed. Drives breach-notification
+    # thresholds, which the rule counts in individuals, not requests.
+    subject_count = Column(Integer, nullable=False, default=1)
+
+    # Non-PHI context: filter terms, export period, failure reason.
+    detail = Column(String(512), nullable=True)
+
+    ip_address = Column(String(64), nullable=True)
+    user_agent = Column(String(255), nullable=True)
+    success = Column(Boolean, nullable=False, default=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
 
 class CollectorGroup(Base):

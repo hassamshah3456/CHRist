@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/user.dart';
 import '../services/api_client.dart';
+import '../services/idle_lock.dart';
 import '../services/local_database.dart';
 import '../services/location_service.dart';
 import '../services/presence_service.dart';
@@ -16,6 +17,7 @@ class AuthProvider extends ChangeNotifier {
   final LocationService location;
   final SyncService sync;
   final PresenceService presence;
+  final IdleLock idleLock;
 
   AuthProvider({
     required this.api,
@@ -23,10 +25,28 @@ class AuthProvider extends ChangeNotifier {
     required this.location,
     required this.sync,
     required this.presence,
-  });
+    required this.idleLock,
+  }) {
+    idleLock.onExpired = _onIdleTimeout;
+  }
 
   AuthStatus status = AuthStatus.unknown;
   AppUser? user;
+
+  /// Set when the session ended by itself rather than by the collector, so the
+  /// sign-in screen can explain why they are back there.
+  bool lockedForInactivity = false;
+
+  /// Sign out locally when the device has been idle too long. Deliberately
+  /// local-only: the collector is probably offline, and this must work anyway.
+  /// Queued records survive — they live in the encrypted local database and
+  /// sync once the collector signs back in.
+  Future<void> _onIdleTimeout() async {
+    if (status != AuthStatus.authenticated) return;
+    await _clearSession(callServer: false, preserveQueue: true);
+    lockedForInactivity = true;
+    notifyListeners();
+  }
 
   /// Restores a saved session on app start.
   Future<void> bootstrap() async {
@@ -36,6 +56,8 @@ class AuthProvider extends ChangeNotifier {
       api.setToken(token);
       user = savedUser;
       status = AuthStatus.authenticated;
+      idleLock.configure(Duration(minutes: await store.readIdleLockMinutes()));
+      idleLock.enable();
       sync.start();
       sync.syncNow();
       presence.enable();
@@ -107,30 +129,65 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _onAuthSuccess(dynamic res) async {
     final token = res['access_token'] as String;
     final u = AppUser.fromJson(res['user'] as Map<String, dynamic>);
+    // The server dictates the inactivity window so it can be tightened
+    // centrally without shipping a new build.
+    final idleMinutes = (res['idle_lock_minutes'] as num?)?.toInt() ?? 15;
+
     api.setToken(token);
-    await store.save(token, u);
+    await store.save(token, u, idleLockMinutes: idleMinutes);
     user = u;
     status = AuthStatus.authenticated;
+    lockedForInactivity = false;
+    idleLock.configure(Duration(minutes: idleMinutes));
+    idleLock.enable();
     sync.start();
     sync.syncNow();
     presence.enable();
     notifyListeners();
   }
 
-  Future<void> logout() async {
+  /// Tears down the local session.
+  ///
+  /// [callServer] revokes the token server-side so it cannot be replayed from
+  /// a copy of the device. [preserveQueue] keeps unsynced records: an
+  /// inactivity lock must never destroy a collector's unsent field work, while
+  /// a deliberate sign-out clears the device of participant data.
+  Future<void> _clearSession({
+    required bool callServer,
+    required bool preserveQueue,
+  }) async {
+    if (callServer) {
+      try {
+        await api.postJson('/auth/logout', const {});
+      } catch (_) {
+        // Offline, or the token had already expired. The local session is
+        // cleared regardless — never trap someone in a signed-in state.
+      }
+    }
+    idleLock.disable();
     await store.clear();
-    await LocalDatabase.instance.clearAll();
+    if (!preserveQueue) {
+      await LocalDatabase.instance.clearAll();
+    }
     api.setToken(null);
     user = null;
     status = AuthStatus.unauthenticated;
     sync.dispose();
     presence.disable();
+  }
+
+  Future<void> logout() async {
+    await _clearSession(callServer: true, preserveQueue: false);
+    lockedForInactivity = false;
     notifyListeners();
   }
 
   /// Deletes the collector account on the server and clears local data.
   Future<void> deleteAccount() async {
     await api.delete('/auth/account');
-    await logout();
+    // The account is gone, so there is no session left to revoke.
+    await _clearSession(callServer: false, preserveQueue: false);
+    lockedForInactivity = false;
+    notifyListeners();
   }
 }

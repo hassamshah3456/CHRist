@@ -32,6 +32,10 @@ jobs:
         run: |
           cp android_overrides/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           cp -R android_overrides/res/* android/app/src/main/res/
+          # FLAG_SECURE: blocks screenshots and screen recording, and hides the
+          # recent-apps preview of screens showing participant data.
+          cp android_overrides/MainActivity.kt \
+            android/app/src/main/kotlin/com/usmlewise/usmlewise_christ/MainActivity.kt
 
       - name: Configure release signing (optional)
         env:

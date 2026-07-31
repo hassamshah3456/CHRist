@@ -11,12 +11,13 @@ from collections import Counter, OrderedDict, defaultdict
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from .. import models, payments, schemas
+from .. import audit, crypto, models, payments, schemas
+from ..audit import Action
 from ..auth import get_current_admin
 from ..config import settings
 from ..database import get_db
@@ -443,6 +444,7 @@ def admin_collections(
     positive: str = Query("all", pattern="^(all|triple|quad)$"),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
+    request: Request = None,
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
@@ -457,6 +459,15 @@ def admin_collections(
         .all()
     )
     answers = _answers_by_collection(db, [c.id for c, _ in rows])
+
+    # One row per page viewed, counting the individuals actually returned.
+    audit.record_user(
+        admin, Action.VIEW_COLLECTIONS, request=request,
+        resource_type="collection", subject_count=len(rows),
+        detail=f"period={period} page={page} "
+               f"collector={collector_id or 'all'} "
+               f"search={'yes' if search else 'no'} positive={positive}",
+    )
     return schemas.AdminCollectionsPage(
         items=[
             _admin_collection_out(c, u, answers.get(c.id, []))
@@ -472,12 +483,22 @@ def admin_collections(
 @router.get("/collections/map", response_model=List[schemas.CollectionMapPoint])
 def admin_collections_map(
     period: str = Query("all", pattern="^(today|yesterday|week|month|all)$"),
+    request: Request = None,
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    """Lightweight geo points for the dashboard map (no answers payload)."""
+    """Lightweight geo points for the dashboard map (no answers payload).
+
+    Still PHI: a child's name beside a precise coordinate is about as
+    identifying as this data gets, so map views are audited like any other read.
+    """
     q = _collections_query(db, period)
     rows = q.order_by(models.Collection.collected_at.desc()).all()
+    audit.record_user(
+        admin, Action.VIEW_MAP, request=request,
+        resource_type="collection", subject_count=len(rows),
+        detail=f"period={period}",
+    )
     return [
         schemas.CollectionMapPoint(
             id=c.id,
@@ -498,6 +519,7 @@ def admin_collections_map(
 @router.delete("/collections/{collection_id}", status_code=204)
 def delete_collection(
     collection_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
@@ -507,6 +529,14 @@ def delete_collection(
     ).first()
     if c is None:
         raise HTTPException(404, "Collection not found.")
+
+    # Audited before the row disappears — destruction of a participant record
+    # is precisely what an investigation needs to be able to reconstruct.
+    audit.record_user(
+        admin, Action.DELETE_COLLECTION, request=request,
+        resource_type="collection", resource_id=c.id,
+        detail=f"collected_at={c.collected_at} by={c.collector_name}",
+    )
 
     # Gather photo filenames before the row (and cascaded answers) are removed.
     photo_names = []
@@ -696,13 +726,48 @@ def delete_group(
     db.commit()
 
 
+def _coarsen_coordinate(value: Optional[float]) -> str:
+    """Round a coordinate to ~11 km so a household cannot be pinpointed.
+
+    HIPAA Safe Harbor treats geography finer than the first three digits of a
+    postcode as an identifier. One decimal place is the closest simple analogue
+    for a country without US ZIP codes, and it keeps the data useful for
+    district-level analysis.
+    """
+    if value is None:
+        return ""
+    return f"{round(float(value), 1):.1f}"
+
+
 @router.get("/export.csv")
 def export_csv(
+    request: Request,
     period: str = Query("all", pattern="^(today|yesterday|week|month|all)$"),
+    deidentified: bool = Query(
+        False,
+        description="Strip direct identifiers and coarsen geography for "
+                    "analysis datasets that leave the study perimeter.",
+    ),
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    """Download all (filtered) collections as a CSV (opens in Excel)."""
+    """Download all (filtered) collections as a CSV (opens in Excel).
+
+    Two modes:
+
+    * **Identified** (default) — the operational export, containing names,
+      phone numbers and precise coordinates. This is PHI leaving the
+      perimeter, so it is audited with the number of individuals involved.
+    * **De-identified** (`?deidentified=true`) — child name, caregiver phone,
+      collector phone/email, resolved address and the photo filename are
+      dropped; coordinates are coarsened to ~11 km; the timestamp is reduced
+      to a date. Intended for analysis and sharing.
+
+    The de-identified mode is a strong pseudonymisation, not a formal Safe
+    Harbor determination: the row id still links back to the full record, and
+    free-text answers are passed through unedited and may contain names. Treat
+    the output as a limited data set unless it has been reviewed.
+    """
     q = db.query(models.Collection, models.User).join(
         models.User, models.Collection.user_id == models.User.id
     )
@@ -722,68 +787,157 @@ def export_csv(
     }
     answer_codes = sorted(code_title.keys(), key=lambda c: order_map.get(c, 9999))
 
-    base_cols = [
-        "id", "collected_at", "collector_name", "collector_phone", "collector_email",
-        "phone", "verbal_consent", "child_name", "child_age", "child_age_months", "child_sex", "responder",
-        "responder_other", "medical_record", "medical_record_photo",
-        "card_submitted", "card_approved", "vaccines",
-        "location_lat", "location_lng", "location_address",
-    ]
+    if deidentified:
+        base_cols = [
+            "id", "collected_date", "collector_name", "verbal_consent",
+            "child_age", "child_age_months", "child_sex", "responder",
+            "medical_record", "card_submitted", "card_approved", "vaccines",
+            "location_lat_approx", "location_lng_approx",
+        ]
+    else:
+        base_cols = [
+            "id", "collected_at", "collector_name", "collector_phone",
+            "collector_email", "phone", "verbal_consent", "child_name",
+            "child_age", "child_age_months", "child_sex", "responder",
+            "responder_other", "medical_record", "medical_record_photo",
+            "card_submitted", "card_approved", "vaccines",
+            "location_lat", "location_lng", "location_address",
+        ]
 
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(base_cols + [f"Q:{code_title[c]}" for c in answer_codes])
     for c, u in rows:
         by_code = {a.question_code: a for a in grouped.get(c.id, [])}
-        writer.writerow([
-            c.id,
-            c.collected_at.isoformat() if c.collected_at else "",
-            c.collector_name,
-            u.phone or "",
-            u.email or "",
-            c.phone or "",
-            "yes" if c.verbal_consent else "no",
-            c.child_name or "",
-            c.child_age if c.child_age is not None else "",
-            c.child_age_months if c.child_age_months is not None else "",
-            c.child_sex or "",
-            c.responder or "",
-            c.responder_other or "",
-            "yes" if c.medical_record else ("no" if c.medical_record is not None else ""),
-            c.medical_record_photo or "",
-            "yes" if c.card_submitted else "no",
-            "yes" if c.card_approved else "no",
-            c.vaccines or "",
-            c.location_lat if c.location_lat is not None else "",
-            c.location_lng if c.location_lng is not None else "",
-            c.location_address or "",
-        ] + [
+        medical = (
+            "yes" if c.medical_record
+            else ("no" if c.medical_record is not None else "")
+        )
+        if deidentified:
+            row = [
+                c.id,
+                # Date only: a precise timestamp plus a coarse location can
+                # still single out a household.
+                c.collected_at.date().isoformat() if c.collected_at else "",
+                c.collector_name,
+                "yes" if c.verbal_consent else "no",
+                c.child_age if c.child_age is not None else "",
+                c.child_age_months if c.child_age_months is not None else "",
+                c.child_sex or "",
+                c.responder or "",
+                medical,
+                "yes" if c.card_submitted else "no",
+                "yes" if c.card_approved else "no",
+                c.vaccines or "",
+                _coarsen_coordinate(c.location_lat),
+                _coarsen_coordinate(c.location_lng),
+            ]
+        else:
+            row = [
+                c.id,
+                c.collected_at.isoformat() if c.collected_at else "",
+                c.collector_name,
+                u.phone or "",
+                u.email or "",
+                c.phone or "",
+                "yes" if c.verbal_consent else "no",
+                c.child_name or "",
+                c.child_age if c.child_age is not None else "",
+                c.child_age_months if c.child_age_months is not None else "",
+                c.child_sex or "",
+                c.responder or "",
+                c.responder_other or "",
+                medical,
+                c.medical_record_photo or "",
+                "yes" if c.card_submitted else "no",
+                "yes" if c.card_approved else "no",
+                c.vaccines or "",
+                c.location_lat if c.location_lat is not None else "",
+                c.location_lng if c.location_lng is not None else "",
+                c.location_address or "",
+            ]
+        writer.writerow(row + [
             _answer_display(by_code[code]) if code in by_code else ""
             for code in answer_codes
         ])
     buf.seek(0)
-    filename = f"collections_{period}_{datetime.utcnow():%Y%m%d}.csv"
+
+    # An export is the single largest disclosure this system performs, so the
+    # audit row carries the individual count that breach thresholds depend on.
+    audit.record_user(
+        admin,
+        Action.EXPORT_CSV_DEIDENTIFIED if deidentified else Action.EXPORT_CSV,
+        request=request,
+        resource_type="collection", subject_count=len(rows),
+        detail=f"period={period} rows={len(rows)} "
+               f"mode={'de-identified' if deidentified else 'identified'}",
+    )
+
+    suffix = "_deidentified" if deidentified else ""
+    filename = f"collections_{period}{suffix}_{datetime.utcnow():%Y%m%d}.csv"
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store, private",
+        },
     )
+
+
+_PHOTO_MEDIA_TYPES = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+    ".png": "image/png", ".webp": "image/webp",
+}
 
 
 @router.get("/photos/{filename}")
 def get_photo(
     filename: str,
+    request: Request,
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    """Serve an uploaded photo to admins only (these are medical records)."""
+    """Serve an uploaded photo to admins only (these are medical records).
+
+    Stored bytes are AES-256-GCM ciphertext, so the file is decrypted in memory
+    and streamed back — it is never written to disk in the clear. Every open is
+    audited: viewing a child's immunisation card is a disclosure, and §164.312(b)
+    expects it to be attributable.
+    """
     # Guard against path traversal — only a bare filename is allowed.
     if "/" in filename or "\\" in filename or ".." in filename:
         raise HTTPException(400, "Invalid filename.")
     path = os.path.join(settings.MEDIA_DIR, filename)
     if not os.path.isfile(path):
         raise HTTPException(404, "Photo not found.")
-    return FileResponse(path)
+
+    try:
+        content = crypto.read_decrypted(path)
+    except crypto.MediaCryptoError as exc:
+        audit.record_user(
+            admin, Action.VIEW_PHOTO, request=request, success=False,
+            resource_type="photo", resource_id=filename, detail=str(exc)[:512],
+        )
+        # A failure here means the key is wrong or the file was tampered with.
+        # Both are incidents, not 404s.
+        raise HTTPException(500, "This photo could not be decrypted.")
+
+    audit.record_user(
+        admin, Action.VIEW_PHOTO, request=request,
+        resource_type="photo", resource_id=filename,
+    )
+
+    ext = os.path.splitext(filename)[1].lower()
+    return Response(
+        content=content,
+        media_type=_PHOTO_MEDIA_TYPES.get(ext, "application/octet-stream"),
+        headers={
+            # Medical images must not linger in a shared or browser cache.
+            "Cache-Control": "no-store, private",
+            "Content-Disposition": f'inline; filename="{filename}"',
+        },
+    )
 
 
 # ---------- Instructions ----------
@@ -1009,3 +1163,99 @@ def mark_collector_paid(
     cfg = payments.get_config(db)
     payout = payments.mark_paid(db, user, cfg)
     return payout
+
+
+# ---------- Audit trail (§164.308(a)(1)(ii)(D): information system activity review)
+# An audit log nobody reads is theatre. These endpoints exist so the required
+# periodic review is something an administrator can actually perform, and so a
+# suspected incident can be investigated without database access.
+@router.get("/audit", response_model=schemas.AuditPage)
+def audit_trail(
+    action: Optional[str] = Query(None, description="Exact action, e.g. phi.export_csv"),
+    actor_id: Optional[str] = None,
+    resource_id: Optional[str] = None,
+    since_days: int = Query(30, ge=1, le=2190),
+    only_failures: bool = False,
+    phi_only: bool = Query(
+        False, description="Restrict to actions that exposed or moved PHI."
+    ),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Read the audit trail.
+
+    Deliberately NOT audited itself: recording every review would grow the
+    table without adding accountability, since the reviewer is already an
+    administrator whose other actions are logged.
+    """
+    q = db.query(models.AuditLog).filter(
+        models.AuditLog.created_at >= datetime.utcnow() - timedelta(days=since_days)
+    )
+    if action:
+        q = q.filter(models.AuditLog.action == action)
+    if actor_id:
+        q = q.filter(models.AuditLog.actor_id == actor_id)
+    if resource_id:
+        q = q.filter(models.AuditLog.resource_id == resource_id)
+    if only_failures:
+        q = q.filter(models.AuditLog.success.is_(False))
+    if phi_only:
+        q = q.filter(models.AuditLog.action.like("phi.%"))
+
+    total = q.count()
+    items = (
+        q.order_by(models.AuditLog.created_at.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+    return schemas.AuditPage(total=total, items=items)
+
+
+@router.get("/audit/summary")
+def audit_summary(
+    since_days: int = Query(7, ge=1, le=365),
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Counts by action, plus the signals worth reviewing weekly.
+
+    `failed_logins` and `lockouts` surface credential attacks;
+    `individuals_exported` is the number that matters if an export ever has to
+    be assessed as a breach.
+    """
+    since = datetime.utcnow() - timedelta(days=since_days)
+    rows = (
+        db.query(models.AuditLog.action, func.count(models.AuditLog.id))
+        .filter(models.AuditLog.created_at >= since)
+        .group_by(models.AuditLog.action)
+        .all()
+    )
+    by_action = {a: n for a, n in rows}
+
+    exported = (
+        db.query(func.coalesce(func.sum(models.AuditLog.subject_count), 0))
+        .filter(
+            models.AuditLog.created_at >= since,
+            models.AuditLog.action.in_([
+                Action.EXPORT_CSV, Action.EXPORT_CSV_DEIDENTIFIED
+            ]),
+        )
+        .scalar()
+    )
+
+    return {
+        "since_days": since_days,
+        "by_action": by_action,
+        "failed_logins": by_action.get(Action.LOGIN_FAILURE, 0),
+        "lockouts": by_action.get(Action.LOGIN_LOCKED, 0),
+        "mfa_failures": by_action.get(Action.MFA_FAILURE, 0),
+        "photos_viewed": by_action.get(Action.VIEW_PHOTO, 0),
+        "exports": (
+            by_action.get(Action.EXPORT_CSV, 0)
+            + by_action.get(Action.EXPORT_CSV_DEIDENTIFIED, 0)
+        ),
+        "individuals_exported": int(exported or 0),
+    }

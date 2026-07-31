@@ -9,9 +9,15 @@ from sqlalchemy import inspect, text
 
 from . import models, schemas
 from .auth import get_current_user
-from .config import settings
+from .config import settings, validate_production
 from .database import Base, engine
-from .routers import (
+
+# Abort start-up rather than run production on a placeholder signing key, an
+# unencrypted media volume or a wildcard CORS policy. Deliberately the first
+# thing that happens after imports, before any table is touched.
+validate_production()
+
+from .routers import (  # noqa: E402 — must follow the config gate above
     admin_router,
     auth_router,
     collections_router,
@@ -45,6 +51,14 @@ def _ensure_columns():
         "app_seconds": "0",
         "card_entries_count": "0",
         "card_per_entry": "0",
+        # Security columns added with the HIPAA safeguards. Existing rows
+        # backfill to "never revoked, no failures, MFA off", which is the
+        # correct starting state for an account that predates them.
+        "token_version": "0",
+        "failed_login_count": "0",
+        "mfa_enabled": "0",
+        "subject_count": "1",
+        "success": "1",
     }
     inspector = inspect(engine)
     prep = engine.dialect.identifier_preparer
@@ -153,22 +167,57 @@ os.makedirs(settings.MEDIA_DIR, exist_ok=True)
 
 app = FastAPI(title=settings.PROJECT_NAME)
 
-# Mobile clients don't need CORS, but this keeps a web dashboard option open.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS is off by default. Native mobile clients do not use it, and the admin
+# dashboard is served from this same origin, so no cross-origin access is
+# needed. Previously this was allow_origins=["*"] with allow_credentials=True,
+# which let any website on the internet script authenticated calls against the
+# API using a signed-in administrator's browser session. Set ALLOWED_ORIGINS
+# only if a separately hosted front end genuinely needs access.
+if settings.ALLOWED_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
+
 
 @app.middleware("http")
-async def no_cache_dashboard(request, call_next):
-    """Keep the admin dashboard and web app from being aggressively cached, so
-    deploys show up on a normal refresh instead of needing a hard refresh."""
+async def security_headers(request, call_next):
+    """Baseline hardening headers, plus cache rules for PHI-bearing responses.
+
+    The API returns participant data as JSON; without an explicit no-store it
+    can be written to a shared proxy cache or left in a browser's back/forward
+    cache on a device that several collectors use.
+    """
     response = await call_next(request)
-    if request.url.path.startswith(("/admin", "/web")):
+    path = request.url.path
+
+    # Never let the browser guess a content type, be framed, or leak the full
+    # URL (which can carry record ids) to third-party sites.
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = (
+        "geolocation=(self), camera=(self), microphone=()"
+    )
+
+    # HSTS only in production: sending it from a local http:// dev server
+    # would pin the browser to https for localhost and break development.
+    if settings.is_production:
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+
+    # Keep the dashboard and web app from being aggressively cached, so deploys
+    # show up on a normal refresh instead of needing a hard refresh.
+    if path.startswith(("/admin", "/web")):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    # API responses carrying participant data must not be cached at all.
+    elif path.startswith(("/api", "/collections", "/auth", "/me", "/stats")):
+        response.headers.setdefault("Cache-Control", "no-store, private")
+
     return response
 
 
