@@ -542,6 +542,8 @@ class OmrPageSummary(BaseModel):
     id: str
     page_number: int
     status: str
+    # register | roster | questionnaire — what the page turned out to be.
+    kind: Optional[str] = None
     error: Optional[str] = None
     rows_count: int = 0
     uncertain_count: int = 0
@@ -552,6 +554,7 @@ class OmrPageDetail(BaseModel):
     batch_id: str
     page_number: int
     status: str
+    kind: Optional[str] = None
     error: Optional[str] = None
     model_used: Optional[str] = None
     language_detected: Optional[str] = None

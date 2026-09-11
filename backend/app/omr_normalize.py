@@ -545,6 +545,22 @@ _UNCERTAIN_KEYS = ("uncertain", "unsure", "lowconfidence", "needsreview",
                    "doubtful", "ambiguous", "unclear")
 _CONFIDENCE_KEYS = ("confidence", "conf", "certainty", "score")
 
+# What a page is, which decides how its rows are used. See models.OmrPage.kind.
+KIND_REGISTER = "register"
+KIND_ROSTER = "roster"
+KIND_QUESTIONNAIRE = "questionnaire"
+_KINDS = (KIND_REGISTER, KIND_ROSTER, KIND_QUESTIONNAIRE)
+_KIND_KEYS = ("sheettype", "sheetkind", "pagetype", "pagekind", "type", "kind",
+              "formtype", "layout")
+_KIND_ALIASES = {
+    "list": KIND_ROSTER, "linelist": KIND_ROSTER, "childlist": KIND_ROSTER,
+    "table": KIND_ROSTER, "villagelist": KIND_ROSTER, "index": KIND_ROSTER,
+    "form": KIND_QUESTIONNAIRE, "screening": KIND_QUESTIONNAIRE,
+    "question": KIND_QUESTIONNAIRE, "questions": KIND_QUESTIONNAIRE,
+    "singlechild": KIND_QUESTIONNAIRE,
+    "sheet": KIND_REGISTER, "combined": KIND_REGISTER,
+}
+
 _LANGUAGE_ALIASES = {
     "hindi": "hi", "hin": "hi", "devanagari": "hi",
     "kannada": "kn", "kan": "kn",
@@ -654,13 +670,18 @@ def normalize_row(raw: Any, position: int,
         uncertain = True
 
     # Sheet serials are small. A huge one means we picked up something else
-    # under a generic key like "number", so fall back to the row's position.
+    # under a generic key like "number", so treat it as unnumbered. A serial
+    # of None means "the page did not say", which normalize_extraction fills
+    # in differently depending on the kind of page: on a table it is the row's
+    # position, on a questionnaire it stays unknown, because a made-up serial
+    # there would match the wrong child.
     serial = _to_int(_pick(idx, *_SERIAL_KEYS))
-    if serial is None or not 0 <= serial <= 999:
-        serial = position
+    if serial is not None and not 0 <= serial <= 999:
+        serial = None
 
     return {
         "serial": serial,
+        "position": position,
         "age_text": age_written[:64] or None,
         "age_years": years,
         "age_months": months,
@@ -683,6 +704,41 @@ def _section(idx: Dict[str, Any], container_keys) -> Dict[str, Any]:
             merged.update({k: v for k, v in _index(nested).items()
                            if v not in (None, "")})
     return merged
+
+
+def _infer_kind(rows: List[Dict[str, Any]], declared: Any) -> str:
+    """Which of the three page layouts this is.
+
+    The model is asked to say, but it is guessing about its own output, so a
+    declared kind is only trusted when the rows agree with it. The rows
+    themselves are the better evidence: answers with no ages on a single row
+    is a questionnaire, ages with no answers anywhere is a roster.
+    """
+    declared = re.sub(r"[^a-z]", "", str(declared or "").lower())
+    declared = _KIND_ALIASES.get(declared, declared)
+    if declared not in _KINDS:
+        declared = ""
+
+    with_answers = [r for r in rows if any(
+        r[q] for q in ("q1", "q2", "q3", "q4"))]
+    with_age = [r for r in rows if r["age_years"] is not None
+                or r["age_months"] is not None or r["age_text"]]
+
+    if not rows:
+        return declared or KIND_REGISTER
+    if with_answers and not with_age:
+        # No ages anywhere, so these answers belong to someone named on
+        # another page. One row is the usual shape; more than one still can
+        # only be matched up elsewhere.
+        return KIND_QUESTIONNAIRE
+    if with_age and not with_answers:
+        return KIND_ROSTER
+    if len(rows) == 1 and declared == KIND_QUESTIONNAIRE:
+        # A questionnaire page whose header also carried a date of birth, so
+        # the row has both an age and answers. The model's word decides.
+        return KIND_QUESTIONNAIRE
+    # Rows carry both ages and answers: the classic combined sheet.
+    return declared or KIND_REGISTER
 
 
 def normalize_extraction(data: Any, reference: Optional[date] = None) -> Dict[str, Any]:
@@ -733,8 +789,18 @@ def normalize_extraction(data: Any, reference: Optional[date] = None) -> Dict[st
         if row is not None:
             rows.append(row)
 
+    kind = _infer_kind(rows, _pick(idx, *_KIND_KEYS))
+    for row in rows:
+        position = row.pop("position")
+        if row["serial"] is None:
+            # An unnumbered line in a table is its position. An unnumbered
+            # questionnaire page is left at 0, meaning "no serial written" —
+            # it has to be matched to a child by date of birth instead.
+            row["serial"] = 0 if kind == KIND_QUESTIONNAIRE else position
+
     footer_mobile = normalize_mobile(_pick(footer, *_MOBILE_KEYS))[0]
     return {
+        "kind": kind,
         "language": language or None,
         "header": {
             "place": _clean(_pick(header, *_PLACE_KEYS))[:255] or None,

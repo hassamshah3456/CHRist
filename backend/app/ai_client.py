@@ -107,8 +107,29 @@ or a mix, and the page may be skewed, faint or photographed at an angle. Work
 out THIS page's layout first, then map what it holds onto the fixed JSON
 schema below. The schema never changes, whatever the sheet looks like.
 
+FIRST decide which of three kinds of page this is, and say so in
+"sheet_type". A child's record is not always on a single page:
+
+- "register": the classic combined sheet. One table where each row has an age
+  AND that row's own yes/no answers. Return one JSON row per table line.
+
+- "roster": a list of children with NO questions anywhere on the page. Its
+  columns are typically a serial number, the child's name, an age or date of
+  birth, the mother's name, a mobile number and an address. Return one JSON
+  row per listed child, with q1-q4 all null.
+
+- "questionnaire": a full page of questions about ONE child, each question
+  followed by its own yes/no boxes. Return EXACTLY ONE JSON row holding that
+  child's four answers. The identity is handwritten across the top of the
+  page, usually a number (often circled), a name, a village and a date of
+  birth. Put the number in "serial" and the date in "date_of_birth" — those
+  two are what link this page back to the roster, so read them carefully. If
+  the top of the page has no number leave "serial" null, and if it has no date
+  leave "date_of_birth" null. Never invent either.
+
 Return ONLY a JSON object — no markdown fences, no commentary:
 {{
+  "sheet_type": "register" | "roster" | "questionnaire",
   "language": "hi" | "kn" | "en" | other ISO code,
   "header": {{"place": "", "block": "", "district": "", "date": ""}},
   "rows": [
@@ -129,7 +150,9 @@ Return ONLY a JSON object — no markdown fences, no commentary:
   "footer": {{"filler_name": "", "designation": "", "mobile": ""}}
 }}
 
-HEADER — the location block, wherever it sits and whatever it is labelled:
+HEADER — the location details, wherever they sit and whatever they are
+labelled. On these sheets they are often one handwritten line above the table,
+such as a date next to a village name, rather than a printed box:
 - "place": village / gram / mohalla / locality / ward / town.
 - "block": block / taluk / taluka / tehsil / mandal / area / circle.
 - "district": district / zilla / jila.
@@ -137,9 +160,11 @@ HEADER — the location block, wherever it sits and whatever it is labelled:
 Leave "" for anything the sheet does not have. Never guess a district from a
 village name.
 
-ROWS — one object per table line that has any handwriting on it. Skip blank
-lines. Use the sheet's own serial number; if the rows are not numbered,
-number them 1, 2, 3… from the top.
+ROWS — on a register or roster page, one object per table line that has
+any handwriting on it; skip blank lines. On a questionnaire page, exactly one
+object. Use the sheet's own serial number, including a number written or
+circled at the top of a questionnaire page. Only if nothing is numbered,
+number the rows 1, 2, 3… from the top.
 
 AGE — the hardest column, because sheets record it in different ways:
 - Always copy the cell verbatim into "age_text", in its original script.
@@ -154,10 +179,12 @@ AGE — the hardest column, because sheets record it in different ways:
 - A bare number with no unit is years unless the column header says otherwise.
 - If the cell is unreadable, keep age_text and leave both numbers null.
 
-QUESTIONS — a row may carry any number of yes/no screening questions,
-whatever they ask. Take the yes/no columns in left-to-right order and put the
-first four into q1, q2, q3, q4. If the sheet has fewer than four, leave the
-rest null; if it has more, use the first four.
+QUESTIONS — a page may carry any number of yes/no screening questions,
+whatever they ask. Take them in the order they appear, left to right in a
+table and top to bottom on a questionnaire page, and put the first four into
+q1, q2, q3, q4. If there are fewer than four, leave the rest null; if there
+are more, use the first four. A roster page has none, so leave all four null
+rather than guessing.
 - An answer may be marked any way: a tick or cross inside or beside a bracket,
   a filled or darkened bubble, a circled word, a struck-through option, or
   "Y"/"N"/हाँ/नहीं/ಹೌದು/ಇಲ್ಲ written in by hand.

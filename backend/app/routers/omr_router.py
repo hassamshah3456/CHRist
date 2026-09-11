@@ -121,6 +121,7 @@ def _apply_extraction(page: models.OmrPage, data, model_name: str) -> None:
     result = omr_normalize.normalize_extraction(data)
     header = result["header"]
     footer = result["footer"]
+    page.kind = result["kind"]
     page.language_detected = result["language"]
     page.place = header["place"]
     page.block = header["block"]
@@ -139,6 +140,104 @@ def _apply_extraction(page: models.OmrPage, data, model_name: str) -> None:
     page.approved_at = None
 
 
+def _row_birth_date(row: models.OmrRow):
+    """The date of birth a row was written with, if its age cell was one."""
+    return omr_normalize.parse_date(row.age_text)
+
+
+def _link_batch_pages(db: Session, batch_id: str,
+                      flag_missing: bool = True) -> None:
+    """Join questionnaire pages onto the village list they belong to.
+
+    Some uploads put a village roster on one page and then one full-page
+    questionnaire per child after it, so a child's age and a child's answers
+    arrive on different pages. This walks a finished batch and moves each
+    questionnaire's four answers onto that child's roster row.
+
+    A questionnaire is matched on the two things written across the top of it:
+    the serial number (usually circled) and the date of birth. Where neither
+    was readable, a lone remaining questionnaire is paired with a lone
+    remaining child; anything still unmatched is left alone and flagged, never
+    guessed, because attaching answers to the wrong child is worse than
+    leaving a page for a human.
+    """
+    pages = db.query(models.OmrPage).filter(
+        models.OmrPage.batch_id == batch_id
+    ).order_by(models.OmrPage.page_number).all()
+    questionnaires = [p for p in pages
+                      if p.kind == omr_normalize.KIND_QUESTIONNAIRE and p.rows]
+    roster_rows = [r for p in pages if p.kind == omr_normalize.KIND_ROSTER
+                   for r in p.rows]
+    if not questionnaires or not roster_rows:
+        return
+
+    taken = set()
+    unmatched = []
+    for page in questionnaires:
+        answer_row = page.rows[0]
+        serial = answer_row.serial or 0
+        birth = _row_birth_date(answer_row)
+        free = [r for r in roster_rows if id(r) not in taken]
+
+        by_serial = [r for r in free if r.serial and r.serial == serial]
+        by_birth = [r for r in free
+                    if birth and _row_birth_date(r) == birth]
+
+        target, confident = None, True
+        if len(by_serial) == 1 and (not by_birth or by_serial[0] in by_birth):
+            target = by_serial[0]
+        elif len(by_birth) == 1:
+            # Either no serial was written, or it points at a different child.
+            # The date wins: three numbers agreeing exactly is far stronger
+            # evidence than one digit, and a misread circled digit is the
+            # commoner mistake. A disagreement is flagged, not hidden.
+            target, confident = by_birth[0], not by_serial
+        elif len(by_serial) == 1:
+            # The date matched nobody, or matched several children. Fall back
+            # to the written serial and flag the row.
+            target, confident = by_serial[0], False
+
+        if target is None:
+            unmatched.append(page)
+            continue
+        _merge_answers(answer_row, target, confident)
+        taken.add(id(target))
+
+    # Last resort: exactly one child and exactly one questionnaire left over.
+    leftover = [r for r in roster_rows if id(r) not in taken]
+    if len(unmatched) == 1 and len(leftover) == 1:
+        _merge_answers(unmatched[0].rows[0], leftover[0], True)
+        taken.add(id(leftover[0]))
+        unmatched = []
+
+    for page in unmatched:
+        page.rows[0].uncertain = True
+    # A child with no questionnaire in the batch is a page that never arrived.
+    # Skipped when re-linking after an edit, so that a flag a reviewer has
+    # already cleared does not come straight back.
+    if flag_missing:
+        for row in roster_rows:
+            if id(row) not in taken:
+                row.uncertain = True
+
+
+def _merge_answers(source: models.OmrRow, target: models.OmrRow,
+                   confident: bool) -> None:
+    """Move a questionnaire's answers onto the child's roster row.
+
+    The questionnaire row is then removed: its answers now live on the roster
+    row, and keeping a second copy would double-count the child in exports.
+    The scanned page stays, so the merge is still checkable against the image.
+    """
+    target.q1, target.q2, target.q3, target.q4 = (
+        source.q1, source.q2, source.q3, source.q4
+    )
+    if source.uncertain or not confident:
+        target.uncertain = True
+    if source.page is not None:
+        source.page.rows.remove(source)
+
+
 def _process_pages(page_ids: List[str]) -> None:
     """Background task: extract each page with the configured AI model.
 
@@ -146,6 +245,7 @@ def _process_pages(page_ids: List[str]) -> None:
     the request-scoped session is long gone by the time this runs.
     """
     db = SessionLocal()
+    batch_ids = set()
     try:
         cfg = ai_client.get_ai_config(db)
         for page_id in page_ids:
@@ -179,6 +279,7 @@ def _process_pages(page_ids: List[str]) -> None:
 
                 data = ai_client.extract_page(cfg, image_bytes, language)
                 _apply_extraction(page, data, cfg.get("model") or "")
+                batch_ids.add(page.batch_id)
             except Exception as e:  # noqa: BLE001 — any failure marks the page
                 db.rollback()
                 page = db.query(models.OmrPage).filter(
@@ -188,6 +289,15 @@ def _process_pages(page_ids: List[str]) -> None:
                     page.status = "failed"
                     page.error = str(e)[:2000]
             db.commit()
+
+        # Only now, with every page of the batch read, can a questionnaire
+        # page be matched to the child it belongs to.
+        for batch_id in batch_ids:
+            try:
+                _link_batch_pages(db, batch_id)
+                db.commit()
+            except Exception:  # noqa: BLE001 — linking must not lose pages
+                db.rollback()
     finally:
         db.close()
 
@@ -236,6 +346,7 @@ def _page_summary(p: models.OmrPage) -> schemas.OmrPageSummary:
         id=p.id,
         page_number=p.page_number,
         status=p.status,
+        kind=p.kind,
         error=p.error,
         rows_count=len(p.rows),
         uncertain_count=sum(1 for r in p.rows if r.uncertain),
@@ -248,6 +359,7 @@ def _page_detail(p: models.OmrPage) -> schemas.OmrPageDetail:
         batch_id=p.batch_id,
         page_number=p.page_number,
         status=p.status,
+        kind=p.kind,
         error=p.error,
         model_used=p.model_used,
         language_detected=p.language_detected,
@@ -537,6 +649,14 @@ def update_page(
         page.status = "extracted"
         page.approved_at = None
     db.commit()
+
+    # Correcting the serial or the date of birth on a questionnaire that could
+    # not be matched is exactly how a reviewer fixes a failed link, so try the
+    # match again with what they just typed.
+    if page.kind == omr_normalize.KIND_QUESTIONNAIRE and page.rows:
+        _link_batch_pages(db, page.batch_id, flag_missing=False)
+        db.commit()
+
     db.refresh(page)
     return _page_detail(page)
 
@@ -564,12 +684,24 @@ def rerun_page(
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    """Re-run AI extraction on one page (overwrites its rows)."""
+    """Re-run AI extraction on one page (overwrites its rows).
+
+    Re-reading a village list also re-reads that batch's questionnaire pages.
+    Their answers were moved onto the list's rows and the questionnaire rows
+    removed, so a list read on its own would come back with no answers at all.
+    """
     page = _page_or_404(db, page_id)
-    page.status = "pending"
-    page.error = None
+    pages = [page]
+    if page.kind == omr_normalize.KIND_ROSTER:
+        pages += [
+            p for p in (page.batch.pages if page.batch else [])
+            if p.kind == omr_normalize.KIND_QUESTIONNAIRE
+        ]
+    for p in pages:
+        p.status = "pending"
+        p.error = None
     db.commit()
-    background.add_task(_process_pages, [page.id])
+    background.add_task(_process_pages, [p.id for p in pages])
     return _page_summary(page)
 
 

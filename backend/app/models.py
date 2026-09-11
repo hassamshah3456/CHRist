@@ -267,6 +267,18 @@ class OmrPage(Base):
     model_used = Column(String(128), nullable=True)
     language_detected = Column(String(8), nullable=True)
 
+    # What kind of page this is, because one child's record is not always on
+    # one page. Gwalior-style uploads put a village list on the first page and
+    # then one full-page questionnaire per child:
+    #   register      - the classic sheet: every row has an age AND its answers
+    #   roster        - a list of children (serial, age or date of birth,
+    #                   contact) with no questions on the page
+    #   questionnaire - one child's four answers, identified by the serial and
+    #                   date of birth written across the top
+    # Questionnaire answers are merged into the matching roster row after a
+    # batch finishes extracting (see routers/omr_router._link_batch_pages).
+    kind = Column(String(16), nullable=True)
+
     # Location details header (स्थान विवरण)
     place = Column(String(255), nullable=True)       # स्थान (ग्राम/मोहल्ला)
     block = Column(String(255), nullable=True)       # ब्लॉक/क्षेत्र

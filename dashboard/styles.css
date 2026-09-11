@@ -490,6 +490,12 @@ tr.grouped td:first-child { border-left: 3px solid var(--primary); }
 }
 .omr-page-item:hover { border-color: var(--primary); background: #f7f9fe; }
 .omr-warn { color: #9a6b00; }
+/* What a page turned out to be: village list, questionnaire or screening sheet. */
+.omr-kind {
+  color: var(--muted, #667);
+  background: rgba(0, 0, 0, .05);
+  border-radius: 10px; padding: 1px 8px;
+}
 .omr-err { color: var(--danger); overflow: hidden; text-overflow: ellipsis; }
 
 .omr-review {

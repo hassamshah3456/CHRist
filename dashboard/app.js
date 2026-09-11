@@ -1931,6 +1931,15 @@ async function uploadOmr() {
   } finally { btn.disabled = false; }
 }
 
+// What a page turned out to be. A village list and its per-child
+// questionnaires arrive as separate pages of one upload; the questionnaire
+// answers are merged onto the list's rows after the batch is read.
+const OMR_PAGE_KIND = {
+  roster: "Village list",
+  questionnaire: "Questionnaire",
+  register: "Screening sheet",
+};
+
 const OMR_PAGE_STATUS = {
   pending: ["Queued", "pill-busy"],
   processing: ["Reading…", "pill-busy"],
@@ -1953,9 +1962,14 @@ async function openOmrBatch(id, scroll = true) {
         ? `<small class="omr-warn">⚠ ${p.uncertain_count} uncertain</small>` : "";
       const err = p.status === "failed" && p.error
         ? `<small class="omr-err" title="${escapeHtml(p.error)}">${escapeHtml(p.error.slice(0, 80))}</small>` : "";
+      const kind = OMR_PAGE_KIND[p.kind];
+      const kindTag = kind ? `<small class="omr-kind">${kind}</small>` : "";
+      const rows = p.kind === "questionnaire" && !p.rows_count
+        ? `<small>answers merged</small>`
+        : `<small>${p.rows_count} row(s)</small>`;
       return `<div class="omr-page-item" data-omr-page="${p.id}">
         <div><b>Page ${p.page_number}</b> <span class="omr-pill ${cls}">${label}</span></div>
-        <small>${p.rows_count} row(s)</small> ${uncertain} ${err}
+        ${kindTag} ${rows} ${uncertain} ${err}
       </div>`;
     }).join("");
     if (scroll) $("#omr-batch-card").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2006,16 +2020,35 @@ function _omrRowHtml(r) {
   </tr>`;
 }
 
+function _omrKindNote(p) {
+  if (p.kind === "questionnaire") {
+    return p.rows.length
+      ? "This questionnaire could not be matched to a child on the village list. "
+        + "Check the serial number and date of birth written at the top of the scan, "
+        + "correct them below and save to try the match again."
+      : "Questionnaire page. Its four answers have been merged onto the child's "
+        + "row in the village list, so there is nothing to review here.";
+  }
+  if (p.kind === "roster") {
+    return "Village list. The answers on these rows came from the questionnaire "
+      + "pages of this upload.";
+  }
+  return "";
+}
+
 async function openOmrReview(pageId, scroll = true) {
   try {
     const p = await api("/api/omr/pages/" + pageId);
     omrSelectedPage = p;
     $("#omr-review-card").classList.remove("hidden");
     const [label] = OMR_PAGE_STATUS[p.status] || [p.status];
-    $("#omr-review-title").textContent = `Page ${p.page_number} — ${label}`;
+    const kind = OMR_PAGE_KIND[p.kind];
+    $("#omr-review-title").textContent =
+      `Page ${p.page_number}${kind ? " — " + kind : ""} — ${label}`;
     $("#omr-review-status").textContent = p.status === "failed"
       ? "Extraction failed: " + (p.error || "unknown error")
-      : (["pending", "processing"].includes(p.status) ? "AI is reading this page…" : "");
+      : (["pending", "processing"].includes(p.status) ? "AI is reading this page…"
+         : _omrKindNote(p));
     $("#omr-h-place").value = p.place || "";
     $("#omr-h-block").value = p.block || "";
     $("#omr-h-district").value = p.district || "";
