@@ -19,7 +19,7 @@ from fastapi import (
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from .. import ai_client, audit, crypto, models, schemas
+from .. import ai_client, audit, crypto, models, omr_normalize, schemas
 from ..audit import Action
 from ..auth import get_current_admin
 from ..config import settings
@@ -32,14 +32,17 @@ _ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 # only wastes tokens. ~2300px keeps handwriting crisp for the model.
 _MAX_IMAGE_EDGE = 2300
 _PDF_RENDER_SCALE = 2.5  # A4 at 72pt base -> ~1490x2100 px
-_VALID_ANSWERS = {"yes", "no"}
 
 
 # ---------- helpers ----------
 
 def _norm_answer(v: Optional[str]) -> Optional[str]:
-    v = (v or "").strip().lower()
-    return v if v in _VALID_ANSWERS else None
+    """Any spelling of a yes/no cell -> "yes" / "no" / None.
+
+    Shared with the AI path so a reviewer typing "हाँ" or a tick into the
+    review screen is stored the same way the model's answer would be.
+    """
+    return omr_normalize.normalize_answer(v)
 
 
 def _save_jpeg(image, filename: str) -> None:
@@ -107,46 +110,29 @@ def _remove_media(filename: Optional[str]) -> None:
         pass
 
 
-def _apply_extraction(page: models.OmrPage, data: dict, model_name: str) -> None:
-    """Write one extraction result onto a page (replaces existing rows)."""
-    header = data.get("header") or {}
-    footer = data.get("footer") or {}
-    page.language_detected = (data.get("language") or "")[:8] or None
-    page.place = (header.get("place") or "")[:255] or None
-    page.block = (header.get("block") or "")[:255] or None
-    page.district = (header.get("district") or "")[:255] or None
-    page.sheet_date = (header.get("date") or "")[:64] or None
-    page.filler_name = (footer.get("filler_name") or "")[:255] or None
-    page.filler_designation = (footer.get("designation") or "")[:255] or None
-    page.filler_mobile = (footer.get("mobile") or "")[:32] or None
+def _apply_extraction(page: models.OmrPage, data, model_name: str) -> None:
+    """Write one extraction result onto a page (replaces existing rows).
+
+    `data` is whatever JSON the model returned. omr_normalize maps it onto our
+    columns: it accepts the alternative key names and answer words models
+    reach for, and converts any way of writing an age — including a date of
+    birth, which it turns into years and months against the sheet's own date.
+    """
+    result = omr_normalize.normalize_extraction(data)
+    header = result["header"]
+    footer = result["footer"]
+    page.language_detected = result["language"]
+    page.place = header["place"]
+    page.block = header["block"]
+    page.district = header["district"]
+    page.sheet_date = header["date"]
+    page.filler_name = footer["filler_name"]
+    page.filler_designation = footer["designation"]
+    page.filler_mobile = (footer["mobile"] or "")[:32] or None
     page.model_used = model_name[:128] or None
     page.rows.clear()
-    for r in data.get("rows") or []:
-        if not isinstance(r, dict):
-            continue
-        try:
-            serial = int(r.get("serial") or 0)
-        except (TypeError, ValueError):
-            serial = 0
-
-        def _int(v):
-            try:
-                return int(v) if v is not None else None
-            except (TypeError, ValueError):
-                return None
-
-        page.rows.append(models.OmrRow(
-            serial=serial,
-            age_text=(r.get("age_text") or "")[:64] or None,
-            age_years=_int(r.get("age_years")),
-            age_months=_int(r.get("age_months")),
-            q1=_norm_answer(r.get("q1")),
-            q2=_norm_answer(r.get("q2")),
-            q3=_norm_answer(r.get("q3")),
-            q4=_norm_answer(r.get("q4")),
-            mobile=(str(r.get("mobile") or ""))[:32] or None,
-            uncertain=bool(r.get("uncertain")),
-        ))
+    for row in result["rows"]:
+        page.rows.append(models.OmrRow(**row))
     page.status = "extracted"
     page.error = None
     page.extracted_at = datetime.utcnow()
@@ -524,18 +510,27 @@ def update_page(
     page.filler_name = (body.filler_name or "").strip()[:255] or None
     page.filler_designation = (body.filler_designation or "").strip()[:255] or None
     page.filler_mobile = (body.filler_mobile or "").strip()[:32] or None
+    # A reviewer correcting the age cell may type a date of birth, "3 माह" or
+    # "2½" — the same forms the sheets use. Fill the year/month columns from
+    # it when they were left empty, counting against the sheet's own date.
+    reference = omr_normalize.parse_date(page.sheet_date) or datetime.utcnow().date()
     page.rows.clear()
     for r in body.rows:
+        age_text = (r.age_text or "").strip()[:64] or None
+        years, months = r.age_years, r.age_months
+        if years is None and months is None and age_text:
+            parsed = omr_normalize.parse_age(age_text, reference)
+            years, months = parsed["years"], parsed["months"]
         page.rows.append(models.OmrRow(
             serial=r.serial,
-            age_text=(r.age_text or "").strip()[:64] or None,
-            age_years=r.age_years,
-            age_months=r.age_months,
+            age_text=age_text,
+            age_years=years,
+            age_months=months,
             q1=_norm_answer(r.q1),
             q2=_norm_answer(r.q2),
             q3=_norm_answer(r.q3),
             q4=_norm_answer(r.q4),
-            mobile=(r.mobile or "").strip()[:32] or None,
+            mobile=omr_normalize.normalize_mobile(r.mobile)[0],
             uncertain=r.uncertain,
         ))
     if page.status in ("extracted", "approved"):

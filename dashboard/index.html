@@ -346,8 +346,10 @@
         <div class="card-head">
           <div>
             <h3 style="margin-bottom:4px">Upload scanned sheets</h3>
-            <small>Upload a PDF of CRIST screening sheets (or photos of individual sheets).
-              Each page is read by the AI model configured in Settings, then reviewed here before it counts.</small>
+            <small>Upload a PDF of screening sheets (or photos of individual sheets).
+              Any sheet layout works &mdash; columns in a different order, different wording,
+              or an age column holding a date of birth. Each page is read by the AI model
+              configured in Settings, then reviewed here before it counts.</small>
           </div>
         </div>
         <div class="omr-upload-row">
@@ -404,7 +406,8 @@
           <div>
             <h3 id="omr-review-title" style="margin-bottom:4px"></h3>
             <small>Compare the scan with the extracted data, fix anything wrong, then approve.
-              Highlighted rows are ones the AI wasn't sure about.</small>
+              Highlighted rows are ones the AI wasn't sure about. An age may be written as a
+              date of birth &mdash; the years and months are worked out from the sheet's date.</small>
           </div>
           <div class="group-actions">
             <button class="btn-ghost" id="omr-rerun-btn">↺ Re-extract</button>
@@ -424,14 +427,14 @@
               <label>Place <input id="omr-h-place" type="text" /></label>
               <label>Block <input id="omr-h-block" type="text" /></label>
               <label>District <input id="omr-h-district" type="text" /></label>
-              <label>Date <input id="omr-h-date" type="text" /></label>
+              <label>Date <input id="omr-h-date" type="text" placeholder="YYYY-MM-DD" /></label>
             </div>
             <h4>Rows</h4>
             <div class="table-wrap">
               <table id="omr-rows-table">
                 <thead>
                   <tr>
-                    <th>#</th><th>Age (as written)</th><th>Yrs</th><th>Mo</th>
+                    <th>#</th><th>Age / DOB (as written)</th><th>Yrs</th><th>Mo</th>
                     <th>Q1</th><th>Q2</th><th>Q3</th><th>Q4</th>
                     <th>Mobile</th><th></th>
                   </tr>

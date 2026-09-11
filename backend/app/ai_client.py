@@ -97,34 +97,25 @@ def list_models(cfg: dict) -> List[str]:
 # ---------- extraction ----------
 
 _EXTRACTION_PROMPT = """\
-You are reading a scanned paper "CRIST screening questionnaire" register sheet.
-The sheet may be in Hindi, Kannada, or English. {language_hint}
+You are a data-entry assistant reading ONE scanned page of a paper screening
+register — a CRIST child-screening sheet or any similar survey form.
+{language_hint}
 
-Layout of every sheet:
-- A header box "location details" with: place (village/mohalla), block/area,
-  district, and date (day/month/year) — all handwritten.
-- A table with up to 22 numbered rows. Each row has:
-  - age of the child, handwritten (may be Devanagari/Kannada digits or words,
-    e.g. "५ वर्ष" = 5 years, "3 माह"/"3 ಮಾಹೆ" = 3 months, "2½" = 2 years 6 months,
-    "1½ साल" = 1 year 6 months);
-  - four yes/no questions. For each question the row shows "Yes ( )  No ( )"
-    (हाँ/नहीं). A handwritten tick/check mark placed in or right next to one of
-    the brackets marks the answer. Ticks are messy and often drift to the right
-    of the bracket they belong to — judge by which bracket the mark starts in
-    or is closest to;
-  - a final column for a mobile number (only filled for triple-positive cases,
-    usually empty).
-- A footer with the filler's name (भरणकर्ता का नाम), designation (पद),
-  signature, and mobile number.
+Sheets vary: columns sit in different orders, the printed labels differ, the
+questions are worded differently, the language may be Hindi, Kannada, English
+or a mix, and the page may be skewed, faint or photographed at an angle. Work
+out THIS page's layout first, then map what it holds onto the fixed JSON
+schema below. The schema never changes, whatever the sheet looks like.
 
-Return ONLY a JSON object, no markdown fences, no commentary:
+Return ONLY a JSON object — no markdown fences, no commentary:
 {{
-  "language": "hi" | "kn" | "en",
+  "language": "hi" | "kn" | "en" | other ISO code,
   "header": {{"place": "", "block": "", "district": "", "date": ""}},
   "rows": [
     {{
       "serial": 1,
-      "age_text": "verbatim age as written",
+      "age_text": "the age cell exactly as written",
+      "date_of_birth": "YYYY-MM-DD or null",
       "age_years": 5,
       "age_months": 0,
       "q1": "yes" | "no" | "blank",
@@ -138,17 +129,55 @@ Return ONLY a JSON object, no markdown fences, no commentary:
   "footer": {{"filler_name": "", "designation": "", "mobile": ""}}
 }}
 
-Rules:
-- Include ONLY rows that contain any handwriting (age or at least one tick).
-  Skip completely empty rows.
-- Transcribe header/footer text verbatim in its original script; convert
-  Devanagari/Kannada digits in numbers (dates, ages, mobiles) to Western digits.
-- age_years/age_months: convert the written age. "X माह/month" → years 0,
-  months X. "X½" → X years 6 months. If unreadable, set both to null and keep
-  age_text.
-- Set "uncertain": true on a row if you are not confident about any of its
-  cells (ambiguous tick placement, unreadable age, etc.).
-- Mobile numbers are 10 digits; leave "" when the column is empty.
+HEADER — the location block, wherever it sits and whatever it is labelled:
+- "place": village / gram / mohalla / locality / ward / town.
+- "block": block / taluk / taluka / tehsil / mandal / area / circle.
+- "district": district / zilla / jila.
+- "date": the sheet's date, copied exactly as written.
+Leave "" for anything the sheet does not have. Never guess a district from a
+village name.
+
+ROWS — one object per table line that has any handwriting on it. Skip blank
+lines. Use the sheet's own serial number; if the rows are not numbered,
+number them 1, 2, 3… from the top.
+
+AGE — the hardest column, because sheets record it in different ways:
+- Always copy the cell verbatim into "age_text", in its original script.
+- If the cell is a DATE OF BIRTH (any format: 12/03/2019, 12-3-19, 2019-03-12,
+  12 Jan 2020, १२/०३/२०१९, or a column headed DOB / जन्म तिथि / ಜನ್ಮ ದಿನಾಂಕ),
+  put it in "date_of_birth" as YYYY-MM-DD and leave age_years and age_months
+  null. Do NOT work out the age yourself — the server does that from the
+  sheet's date.
+- Otherwise fill age_years / age_months: "3 माह" / "3 ತಿಂಗಳು" / "3 months" →
+  0 years 3 months; "2½" or "2.5" → 2 years 6 months; "18 months" → 1 year
+  6 months; "45 days" → 0 years 1 month; "पांच साल" / "five years" → 5 years.
+- A bare number with no unit is years unless the column header says otherwise.
+- If the cell is unreadable, keep age_text and leave both numbers null.
+
+QUESTIONS — a row may carry any number of yes/no screening questions,
+whatever they ask. Take the yes/no columns in left-to-right order and put the
+first four into q1, q2, q3, q4. If the sheet has fewer than four, leave the
+rest null; if it has more, use the first four.
+- An answer may be marked any way: a tick or cross inside or beside a bracket,
+  a filled or darkened bubble, a circled word, a struck-through option, or
+  "Y"/"N"/हाँ/नहीं/ಹೌದು/ಇಲ್ಲ written in by hand.
+- Ticks are messy and often drift right of the bracket they belong to — judge
+  by which option the mark starts in or sits closest to.
+- Nothing marked, or both marked → "blank", and set "uncertain": true.
+
+MOBILE — the contact-number column, usually filled only for positive cases.
+Use "" when empty. Convert any Devanagari/Kannada digits to Western digits.
+
+FOOTER — the person who filled the sheet: name, designation/post, mobile.
+
+RULES:
+- Transcribe text verbatim in its original script; write every NUMBER (dates,
+  ages, mobiles, serials) in Western digits.
+- Ignore any other columns the sheet may have — participant names, addresses,
+  remarks, weights. They are deliberately not stored.
+- Never invent a value. Use "" or null for anything not on the page.
+- Set "uncertain": true on any row where you are not fully confident about a
+  cell — an ambiguous mark, a smudged age, a doubtful digit.
 """
 
 
@@ -159,24 +188,39 @@ def _prompt(language: str) -> str:
         "en": "This sheet is in English.",
     }
     return _EXTRACTION_PROMPT.format(
-        language_hint=hints.get(language, "Detect the language yourself.")
+        language_hint=hints.get(
+            language, "The sheet's language is not known — detect it yourself."
+        )
     )
 
 
-def _parse_json_reply(text: str) -> dict:
-    """Extract the JSON object from a model reply (tolerates code fences)."""
-    text = text.strip()
+def _parse_json_reply(text: str):
+    """Extract the JSON payload from a model reply.
+
+    Tolerates code fences, a sentence of preamble, and a model that answers
+    with a bare array of rows instead of the object it was asked for —
+    omr_normalize sorts the shape out afterwards.
+    """
+    text = (text or "").strip()
     if text.startswith("```"):
         text = re.sub(r"^```[a-zA-Z]*\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1 or end <= start:
+    candidates = []
+    for opener, closer in (("{", "}"), ("[", "]")):
+        start, end = text.find(opener), text.rfind(closer)
+        if start != -1 and end > start:
+            candidates.append((start, text[start:end + 1]))
+    if not candidates:
         raise AiRequestError("Model reply did not contain JSON: " + text[:300])
-    try:
-        return json.loads(text[start:end + 1])
-    except json.JSONDecodeError as e:
-        raise AiRequestError(f"Model returned invalid JSON ({e}).")
+    # If both shapes appear, the one that starts first is the whole payload.
+    candidates.sort(key=lambda pair: pair[0])
+    last_error = None
+    for _, blob in candidates:
+        try:
+            return json.loads(blob)
+        except json.JSONDecodeError as e:
+            last_error = e
+    raise AiRequestError(f"Model returned invalid JSON ({last_error}).")
 
 
 def _chat_openai(cfg: dict, prompt: str, image_b64: str, mime: str) -> str:
@@ -255,8 +299,12 @@ def _chat_anthropic(cfg: dict, prompt: str, image_b64: str, mime: str) -> str:
 
 
 def extract_page(cfg: dict, image_bytes: bytes, language: str = "auto",
-                 mime: str = "image/jpeg") -> dict:
-    """Run the vision model on one sheet image; returns the parsed dict."""
+                 mime: str = "image/jpeg"):
+    """Run the vision model on one sheet image; returns the parsed JSON.
+
+    The reply is whatever the model produced. Pass it through
+    omr_normalize.normalize_extraction before storing any of it.
+    """
     _require(cfg)
     image_b64 = base64.standard_b64encode(image_bytes).decode("ascii")
     prompt = _prompt(language)
