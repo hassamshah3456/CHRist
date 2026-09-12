@@ -582,9 +582,14 @@ class OmrPageUpdate(BaseModel):
     rows: List[OmrRowIO] = []
 
 
+class OmrBatchRename(BaseModel):
+    name: Optional[str] = Field(None, max_length=255)
+
+
 class OmrBatchOut(BaseModel):
     id: str
     filename: str
+    name: Optional[str] = None
     language: str
     created_at: datetime
     pages_total: int = 0

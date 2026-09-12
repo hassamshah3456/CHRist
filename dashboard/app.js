@@ -1871,11 +1871,13 @@ async function loadOmrBatches(manageSpinner = true) {
 function renderOmrBatches() {
   const tbody = $("#omr-batches-table tbody");
   if (!omrBatches.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">No uploads yet. Upload a scanned PDF above to begin.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">No uploads yet. Upload a scanned PDF above to begin.</td></tr>`;
     return;
   }
   tbody.innerHTML = omrBatches.map((b) => `
     <tr>
+      <td>${b.name ? escapeHtml(b.name) : '<span class="muted">—</span>'}
+        <button class="link-btn" data-omr-rename="${b.id}" title="Rename this upload">✎</button></td>
       <td>${escapeHtml(b.filename)}</td>
       <td>${fmtDate(b.created_at)}</td>
       <td>${b.language === "auto" ? "Auto" : escapeHtml(b.language)}</td>
@@ -1894,9 +1896,27 @@ $("#omr-batches-table").addEventListener("click", (e) => {
   if (open) { openOmrBatch(open.dataset.omrOpen); return; }
   const exp = e.target.closest("[data-omr-export]");
   if (exp) { exportOmrCsv(exp.dataset.omrExport); return; }
+  const ren = e.target.closest("[data-omr-rename]");
+  if (ren) { renameOmrBatch(ren.dataset.omrRename); return; }
   const del = e.target.closest("[data-omr-del]");
   if (del) deleteOmrBatch(del.dataset.omrDel);
 });
+
+async function renameOmrBatch(id) {
+  const b = omrBatches.find((x) => x.id === id);
+  const current = (b && b.name) || "";
+  const name = prompt("Name this upload (so you know what it was extracted from):", current);
+  if (name === null) return;  // cancelled
+  try {
+    await api("/api/omr/batches/" + id, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim() }),
+    });
+    await loadOmrBatches(false);
+    if (omrSelectedBatchId === id) await openOmrBatch(id, false);
+  } catch (e) { alert(e.message); }
+}
 
 async function uploadOmr() {
   const input = $("#omr-file");
@@ -1907,6 +1927,7 @@ async function uploadOmr() {
   const fd = new FormData();
   [...input.files].forEach((f) => fd.append("files", f));
   fd.append("language", $("#omr-language").value);
+  fd.append("name", $("#omr-name").value.trim());
   try {
     const res = await fetch(API + "/api/omr/upload", {
       method: "POST",
@@ -1920,6 +1941,7 @@ async function uploadOmr() {
     }
     const batch = await res.json();
     input.value = "";
+    $("#omr-name").value = "";
     $("#omr-upload-status").textContent =
       `Uploaded ✓ — extracting ${batch.pages_total} page(s)…`;
     setTimeout(() => { $("#omr-upload-status").textContent = ""; }, 5000);
@@ -1953,9 +1975,9 @@ async function openOmrBatch(id, scroll = true) {
     const b = await api("/api/omr/batches/" + id);
     omrSelectedBatchId = id;
     $("#omr-batch-card").classList.remove("hidden");
-    $("#omr-batch-title").textContent = b.filename;
+    $("#omr-batch-title").textContent = b.name || b.filename;
     $("#omr-batch-summary").textContent =
-      `${b.pages_total} page(s) · ${b.rows_count} extracted row(s) · uploaded ${fmtDate(b.created_at)}`;
+      `${b.name ? b.filename + " · " : ""}${b.pages_total} page(s) · ${b.rows_count} extracted row(s) · uploaded ${fmtDate(b.created_at)}`;
     $("#omr-pages-list").innerHTML = b.pages.map((p) => {
       const [label, cls] = OMR_PAGE_STATUS[p.status] || [p.status, ""];
       const uncertain = p.uncertain_count
@@ -2143,7 +2165,13 @@ async function rerunOmrPage() {
 }
 
 async function exportOmrCsv(batchId = null) {
-  const qs = batchId ? `?batch_id=${encodeURIComponent(batchId)}&approved_only=true` : "?approved_only=true";
+  // Per-batch "CSV" button always exports that batch's approved rows.
+  // The top-level button honours the "Include unapproved" checkbox.
+  const el = $("#omr-export-all");
+  const approvedOnly = batchId ? true : !(el && el.checked);
+  const parts = [`approved_only=${approvedOnly}`];
+  if (batchId) parts.push(`batch_id=${encodeURIComponent(batchId)}`);
+  const qs = "?" + parts.join("&");
   const res = await fetch(API + "/api/omr/export.csv" + qs, {
     headers: { Authorization: "Bearer " + getToken() },
   });

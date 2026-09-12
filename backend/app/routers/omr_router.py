@@ -330,6 +330,7 @@ def _batch_out(batch: models.OmrBatch) -> schemas.OmrBatchOut:
     return schemas.OmrBatchOut(
         id=batch.id,
         filename=batch.filename,
+        name=batch.name,
         language=batch.language,
         created_at=batch.created_at,
         pages_total=len(batch.pages),
@@ -453,10 +454,15 @@ def upload_batch(
     background: BackgroundTasks,
     files: List[UploadFile] = File(...),
     language: str = Form("auto"),
+    name: str = Form(""),
     db: Session = Depends(get_db),
     admin: models.User = Depends(get_current_admin),
 ):
-    """Upload one PDF (each page becomes a sheet) and/or sheet photos."""
+    """Upload one PDF (each page becomes a sheet) and/or sheet photos.
+
+    ``name`` is an optional label so the admin can tell what the batch was
+    extracted from; it falls back to the filename when blank.
+    """
     if language not in ("auto", "hi", "kn", "en"):
         language = "auto"
     # Fail early with a clear message instead of a burst of failed pages.
@@ -469,6 +475,7 @@ def upload_batch(
 
     batch = models.OmrBatch(
         filename=files[0].filename or "upload",
+        name=(name or "").strip()[:255] or None,
         language=language,
         uploaded_by=admin.id,
     )
@@ -540,6 +547,22 @@ def batch_detail(
     return schemas.OmrBatchDetail(
         **out.model_dump(), pages=[_page_summary(p) for p in batch.pages]
     )
+
+
+@router.patch("/omr/batches/{batch_id}", response_model=schemas.OmrBatchOut)
+def rename_batch(
+    batch_id: str,
+    body: schemas.OmrBatchRename,
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(get_current_admin),
+):
+    """Set/clear the batch's label. Works even while pages are still
+    extracting — it only touches the batch row, not the pages."""
+    batch = _batch_or_404(db, batch_id)
+    batch.name = (body.name or "").strip()[:255] or None
+    db.commit()
+    db.refresh(batch)
+    return _batch_out(batch)
 
 
 @router.delete("/omr/batches/{batch_id}", status_code=204)
@@ -729,7 +752,8 @@ def export_omr_csv(
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([
-        "batch_file", "page", "page_status", "place", "block", "district",
+        "batch_name", "batch_file", "page", "page_status",
+        "place", "block", "district",
         "sheet_date", "serial", "age_text", "age_years", "age_months",
         "q1", "q2", "q3", "q4", "mobile", "uncertain",
         "filler_name", "filler_designation", "filler_mobile", "language",
@@ -737,6 +761,7 @@ def export_omr_csv(
     for p in pages:
         for r in p.rows:
             writer.writerow([
+                (p.batch.name or p.batch.filename) if p.batch else "",
                 p.batch.filename if p.batch else "",
                 p.page_number,
                 p.status,

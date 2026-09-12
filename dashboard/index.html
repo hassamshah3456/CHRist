@@ -355,6 +355,10 @@
         <div class="omr-upload-row">
           <input type="file" id="omr-file" multiple
                  accept="application/pdf,image/jpeg,image/png,image/webp" />
+          <label>Upload name
+            <input type="text" id="omr-name" maxlength="255"
+                   placeholder="e.g. Chhattisgarh combined" />
+          </label>
           <label>Sheet language
             <select id="omr-language">
               <option value="auto" selected>Auto-detect</option>
@@ -371,17 +375,23 @@
       <section class="card">
         <div class="card-head">
           <h3>Batches</h3>
-          <button class="btn-primary" id="omr-export-btn">⬇ Export approved CSV</button>
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="check" style="margin:0">
+              <input type="checkbox" id="omr-export-all" /> Include unapproved
+            </label>
+            <button class="btn-primary" id="omr-export-btn">⬇ Export all OMR data (CSV)</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table id="omr-batches-table">
             <colgroup>
-              <col style="width:26%" /><col style="width:14%" /><col style="width:10%" />
-              <col style="width:8%" /><col style="width:22%" /><col style="width:20%" />
+              <col style="width:20%" /><col style="width:18%" /><col style="width:12%" />
+              <col style="width:9%" /><col style="width:7%" /><col style="width:18%" />
+              <col style="width:16%" />
             </colgroup>
             <thead>
               <tr>
-                <th>File</th><th>Uploaded</th><th>Language</th>
+                <th>Name</th><th>File</th><th>Uploaded</th><th>Language</th>
                 <th>Pages</th><th>Status</th><th></th>
               </tr>
             </thead>

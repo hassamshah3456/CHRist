@@ -336,6 +336,11 @@ tbody tr:hover { background: #f7f9fe; }
 .modal textarea { min-height: 64px; resize: vertical; }
 .modal .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; font-weight: 500; }
 .modal .check input { width: auto; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
+.check input { width: auto; }
+.muted { color: #9aa4b2; }
+.link-btn { background: none; border: none; color: #2563eb; cursor: pointer; padding: 0 4px; font-size: 14px; line-height: 1; }
+.link-btn:hover { color: #1d4ed8; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .modal-actions .cancel { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 10px 16px; cursor: pointer; font-weight: 600; }
 tbody tr.clickable { cursor: pointer; }

@@ -238,6 +238,11 @@ class OmrBatch(Base):
 
     id = Column(String(36), primary_key=True, default=_uuid)
     filename = Column(String(255), nullable=False)
+    # Optional human label for the upload, so an admin can tell what a batch
+    # was extracted from (e.g. "Chhattisgarh combined, July"). Falls back to
+    # filename in listings and exports when empty. Added later; _ensure_columns
+    # backfills it as NULL on existing databases.
+    name = Column(String(255), nullable=True)
     # Sheet language hint passed to the model: auto | hi | kn | en
     language = Column(String(8), nullable=False, default="auto")
     uploaded_by = Column(String(36), ForeignKey("users.id"), nullable=True)
